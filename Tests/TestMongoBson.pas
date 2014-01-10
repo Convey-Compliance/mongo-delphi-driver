@@ -611,6 +611,7 @@ var
   {$IFDEF DELPHI2007}
   v_longword : LongWord;
   {$ENDIF}
+  Fmt : TFormatSettings;
 begin
   Name := 'VARIANTFLD_NULL';
   Value := Null;
@@ -666,7 +667,11 @@ begin
   Check(ReturnValue, 'ReturnValue should be True inserting VARIANTFLD_CURRENCY');
 
   Name := 'VARIANTFLD_DATE';
-  Value := StrToDateTime('1/1/2013');
+  fmt.ShortDateFormat:='dd/mm/yyyy';
+  fmt.DateSeparator  :='/';
+  fmt.LongTimeFormat :='hh:nn:ss';
+  fmt.TimeSeparator  :=':';
+  Value := StrToDateTime('01/01/2013 12:34:56', fmt);
   ReturnValue := FIBsonBuffer.AppendVariant(Name, Value);
   Check(ReturnValue, 'ReturnValue should be True inserting VARIANTFLD_DATE');
 
@@ -706,7 +711,7 @@ begin
   CheckEqualsString(Format('%8.1f', [1000.1]), Format('%8.1f', [Single(b.Value('VARIANTFLD_SINGLE'))]), 'Value doesn''t match');
   CheckEqualsString(Format('%8.1f', [1000.2]), Format('%8.1f', [Double(b.Value('VARIANTFLD_DOUBLE'))]), 'Value doesn''t match');
   CheckEqualsString(Format('%8.1f', [1000.3]), Format('%8.1f', [Currency(b.Value('VARIANTFLD_CURRENCY'))]), 'Value doesn''t match');
-  CheckEqualsString('1/1/2013', DateTimeToStr(b.Value('VARIANTFLD_DATE')), 'Value doesn''t match');
+  CheckEqualsString('01/01/2013 12:34:56', DateTimeToStr((b.Value('VARIANTFLD_DATE')), fmt), 'Value doesn''t match');
   {$IFDEF DELPHI2009}
   CheckEquals(10000000000, Int64(b.Value('VARIANTFLD_INT64')), 'Value doesn''t match');
   {$ENDIF}
