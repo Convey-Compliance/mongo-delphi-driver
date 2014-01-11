@@ -176,6 +176,7 @@ type
     procedure TestSimpleBSON;
     procedure Testsize;
     procedure TestValue;
+    procedure Testowns;
   end;
 
   TestBsonAPI = class(TTestCase)
@@ -611,6 +612,7 @@ var
   {$IFDEF DELPHI2007}
   v_longword : LongWord;
   {$ENDIF}
+  Fmt : TFormatSettings;
 begin
   Name := 'VARIANTFLD_NULL';
   Value := Null;
@@ -666,7 +668,11 @@ begin
   Check(ReturnValue, 'ReturnValue should be True inserting VARIANTFLD_CURRENCY');
 
   Name := 'VARIANTFLD_DATE';
-  Value := StrToDateTime('1/1/2013');
+  fmt.ShortDateFormat:='dd/mm/yyyy';
+  fmt.DateSeparator  :='/';
+  fmt.LongTimeFormat :='hh:nn:ss';
+  fmt.TimeSeparator  :=':';
+  Value := StrToDateTime('01/01/2013 12:34:56', fmt);
   ReturnValue := FIBsonBuffer.AppendVariant(Name, Value);
   Check(ReturnValue, 'ReturnValue should be True inserting VARIANTFLD_DATE');
 
@@ -706,7 +712,7 @@ begin
   CheckEqualsString(Format('%8.1f', [1000.1]), Format('%8.1f', [Single(b.Value('VARIANTFLD_SINGLE'))]), 'Value doesn''t match');
   CheckEqualsString(Format('%8.1f', [1000.2]), Format('%8.1f', [Double(b.Value('VARIANTFLD_DOUBLE'))]), 'Value doesn''t match');
   CheckEqualsString(Format('%8.1f', [1000.3]), Format('%8.1f', [Currency(b.Value('VARIANTFLD_CURRENCY'))]), 'Value doesn''t match');
-  CheckEqualsString('1/1/2013', DateTimeToStr(b.Value('VARIANTFLD_DATE')), 'Value doesn''t match');
+  CheckEqualsString('01/01/2013 12:34:56', DateTimeToStr((b.Value('VARIANTFLD_DATE')), fmt), 'Value doesn''t match');
   {$IFDEF DELPHI2009}
   CheckEquals(10000000000, Int64(b.Value('VARIANTFLD_INT64')), 'Value doesn''t match');
   {$ENDIF}
@@ -1751,6 +1757,35 @@ begin
   Name := 'ID';
   ReturnValue := FIBson.Value(Name);
   CheckEquals(123, ReturnValue, 'ReturnValue should be equals to 123');
+end;
+
+procedure TestIBson.Testowns;
+var
+  pb, bsonObj, i: Pointer;
+  b : IBson;
+begin
+  // create native bson
+  bsonObj := bson_alloc;
+  bson_init(bsonObj);
+  bson_append_int(bsonObj, PAnsiChar('test'), 3);
+  b := NewBsonBuffer(bsonObj).finish; // b should not own native bson after created by passing handle
+  pb := b.Handle; // point to native bson
+  b := nil; // destroy b
+  // native bson should not be destroyed while destroying b
+  i := bson_iterator_alloc;
+  bson_iterator_init(i, pb);
+  bson_find(i, pb, PAnsiChar('test'));
+  CheckEquals(3, bson_iterator_int(i));
+  bson_iterator_dealloc(i);
+  bson_dealloc_and_destroy(pb);
+
+  b := BSON(['test', 3]); // create bson that owns native bson
+  pb := b.Handle;
+  b := nil;
+  // expect exception while accessing native bson
+  StartExpectingException(EAccessViolation);
+  bson_iterator_type(pb);
+  StopExpectingException();
 end;
 
 var
