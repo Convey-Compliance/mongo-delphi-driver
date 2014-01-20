@@ -14,7 +14,13 @@ interface
 uses
   TestFramework, Classes, MongoStream, MongoDB, GridFS, TestMongoDB, TestGridFS, MongoAPI;
 
+{$IFNDEF VER130}
 {$I MongoC_defines.inc}
+{$ELSE}{$IFDEF Enterprise}
+{$I MongoC_defines.inc}
+{$ELSE}
+{$I ..\MongoC_defines.inc}
+{$ENDIF}{$ENDIF}
 
 type
   // Test methods for class TMongoStream
