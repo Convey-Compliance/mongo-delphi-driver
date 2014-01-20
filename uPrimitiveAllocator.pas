@@ -35,7 +35,7 @@ function NewPrimitiveAllocator(InitialSize: Cardinal = 512) : IPrimitiveAllocato
 implementation
 
 uses
-  SysUtils, Classes, uAllocators;
+  SysUtils, Classes, uAllocators {$IFDEF DELPHIXE4}, AnsiStrings{$ENDIF};
 
 type
   TPrimitiveAllocator = class(TInterfacedObject, IPrimitiveAllocator)
@@ -188,7 +188,7 @@ function TPrimitiveAllocator.New(const value: PAnsiChar): PAnsiChar;
 var
   ABytes : Cardinal;
 begin
-  ABytes := (StrLen(value) + 1) * sizeof(AnsiChar);
+  ABytes := ({$IFDEF DELPHIXE4}AnsiStrings.{$ENDIF}StrLen(value) + 1) * sizeof(AnsiChar);
   Result := FHeap.Alloc(ABytes);
   system.Move(value^, Result^, ABytes);
 end;
