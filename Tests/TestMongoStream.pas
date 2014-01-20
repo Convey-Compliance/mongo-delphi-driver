@@ -102,7 +102,9 @@ type
 implementation
 
 uses
-  uFileManagement, FileCtrl, SysUtils, MongoBson, Dialogs, Variants, Windows;
+  uFileManagement, FileCtrl, SysUtils, MongoBson, Dialogs
+  {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF}
+  , Windows;
 
 const
   FILESIZE = 512 * 1024;
