@@ -1694,7 +1694,7 @@ var
 
 initialization
   {$IFDEF OnDemandMongoCLoad}
-  if ParamStr(1) = '' then
+  if (ParamStr(1) = '') or (CompareText(ExtractFileExt(ParamStr(1)), '.dll') <> 0) then
     MongoCDLLName := Default_MongoCDLL
   else
     {$IFDEF Enterprise}
