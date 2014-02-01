@@ -50,7 +50,6 @@ type
     procedure InsertAndCheckBson(ID: Integer; const AValue: UTF8String);
     procedure RemoveTest_user(const db: string);
   protected
-    function GetExpectedPrimary: UTF8String; virtual;
     procedure RestartMongo(Authenticated: Boolean = False); virtual;
   public
     procedure SetUp; override;
@@ -114,7 +113,6 @@ type
   protected
     FMongoReplset: TMongoReplset;
     function CreateMongo: TMongo; override;
-    function GetExpectedPrimary: UTF8String; override;
     procedure RestartMongo(Authenticated: Boolean = False); override;
   public
     procedure SetUp; override;
@@ -436,11 +434,6 @@ begin
   CheckEqualsString(AValue, b.Value(PAnsiChar('val_fld')), 'Returned value should be equals to "' + AValue + '"');
 end;
 
-function TestTMongo.GetExpectedPrimary: UTF8String;
-begin
-  Result := '127.0.0.1:27017';
-end;
-
 procedure TestTMongo.InsertAndCheckBson(ID: Integer; const AValue: UTF8String);
 var
   ReturnValue: Boolean;
@@ -561,7 +554,7 @@ var
   ReturnValue: UTF8String;
 begin
   ReturnValue := FMongo.getPrimary;
-  CheckEqualsString(GetExpectedPrimary, ReturnValue, 'Call to return primary should be ' + GetExpectedPrimary);
+  CheckNotEqualsString('', ReturnValue);
 end;
 
 procedure TestTMongo.TestgetSocket;
@@ -1211,11 +1204,6 @@ begin
     end;
 end;
 
-function TestTMongoReplset.GetExpectedPrimary: UTF8String;
-begin
-  Result := '127.0.0.1:27018';
-end;
-
 procedure TestTMongoReplset.RestartMongo(Authenticated: Boolean = False);
 begin
   FreeAndNil(FMongo);
@@ -1464,7 +1452,8 @@ begin
   SetupData;
   try
     FMongoSecondary.find(SampleDataDB, FIMongoCursor);
-    Fail('Call to FMongoSecondary.Find should error out and it didn''t because no option to read from Secondary was set');
+    // Call can succeed or fail, depending if we end up hitting the primary.
+    // There where cases where 27019 was primary
   except
     on E : EMongo do Check((E.ErrorCode = E_MongoDBServerError) and (pos('not master', E.Message) > 0), 'Call should have errored our because Secondary option was not set');
   end;
