@@ -1134,13 +1134,15 @@ var
   db : UTF8String;
 begin
   RestartMongo;
+  sleep(1000);
   Name := 'test_user_xx';
   password := 'test_password_xx';
   db := 'test_db';
   ReturnValue := FMongo.createUser(Name, password, db, ['dbAdmin', 'readWrite']);
   Check(ReturnValue, 'Call to addUser should return true');
+  Sleep(500);
   RestartMongo(True);
-  sleep(100);
+  sleep(1000);
   ReturnValue := FMongo.authenticate(Name, password, db);
   try
     Check(ReturnValue, 'Call to authenticate should return true');
@@ -1148,6 +1150,7 @@ begin
     //RemoveTest_user;
   finally
     RestartMongo(False);
+    sleep(1000);
   end;
 end;
 
