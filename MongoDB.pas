@@ -216,7 +216,7 @@ type
           (* This finds all documents in the collection that have
              age equal to 32, but sorts them by name. *)
             cursor := TMongoCursor.Create(BSON(['age', 32]));
-            cursor.sort := BSON(['name', True]);
+            cursor.sort := BSON(['name', 1]);
             if mongo.find(ns, cursor) then
               while cursor.next() do
                 (* Do something with cursor.value() *)
@@ -333,6 +333,11 @@ type
       { Destroy this TMongo object.  Severs the connection to the server and releases
         external resources. }
     destructor Destroy; override;
+      { Add a user name / password to the given database.  This may be authenticated
+        with the authenticate function.
+        See http://www.mongodb.org/display/DOCS/Security+and+Authentication }
+    function createUser(const Name, password, db: UTF8String; ARoles: array of
+        UTF8String): Boolean; overload;
     function findAndModify(const ns: UTF8String; const query, sort, update: array
         of const; const fields: array of UTF8String; options:
         TFindAndModifyOptionsSet): IBson; overload;
@@ -1070,6 +1075,20 @@ begin
   Result := addUser(Name, password, SAdmin);
 end;
 
+function TMongo.createUser(const Name, password, db: UTF8String; ARoles: array
+    of UTF8String): Boolean;
+var
+  roles : array of PAnsiChar;
+  i : integer;
+begin
+  CheckHandle('createUser');
+  SetLength(roles, length(ARoles) + 1);
+  for I := Low(ARoles) to High(ARoles) do
+    roles[i] := PAnsiChar(ARoles[i]);
+  roles[high(roles)] := nil;
+  Result := mongo_cmd_create_user(fhandle, PAnsiChar(db), PAnsiChar(Name), PAnsiChar(password), @roles[0]) = 0;
+end;
+
 function TMongo.authenticate(const Name, password, db: UTF8String): Boolean;
 begin
   CheckHandle('authenticate');
@@ -1100,8 +1119,7 @@ begin
   Err := cmdGetLastError(db);
   if Err <> nil then
   begin
-    it := Err.iterator;
-    it.Next;
+    it := Err.find('err');
     raise EMongo.Create(UTF8String(it.Value), E_MongoDBServerError);
   end;
 end;
