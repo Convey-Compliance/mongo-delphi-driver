@@ -142,8 +142,6 @@
         <DCC_IMPLICIT_STRING_CAST>false</DCC_IMPLICIT_STRING_CAST>
         <Version>7.0</Version>
         <DCC_Define>FASTMM;NeverSleepOnThreadContention;DEBUG</DCC_Define>
-        <DCC_ObjOutput>X:\DCU\D2007</DCC_ObjOutput>
-        <DCC_HppOutput>X:\DCU\D2007</DCC_HppOutput>
         <DCC_TYPEINFO_IMPLICITLY_ADDED>False</DCC_TYPEINFO_IMPLICITLY_ADDED>
         <DCC_StackSize>262144,1048576</DCC_StackSize>
         <DCC_SYMBOL_DEPRECATED>False</DCC_SYMBOL_DEPRECATED>

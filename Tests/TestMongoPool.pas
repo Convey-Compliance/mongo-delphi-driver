@@ -69,8 +69,8 @@ procedure TestTMongoPool.TearDown;
 begin
   FMongoPool.Free;
   FMongoPool := nil;
-  RemoveUser('test_user_thread', 'test_usr_pwd');
-  RemoveUser('testuser', 'testpwd');
+  RemoveUser('admin', 'test_user_thread', 'test_usr_pwd');
+  RemoveUser('admin', 'testuser', 'testpwd');
   FMongo.dropDatabase('test');
   FMongo.dropDatabase('testdb');
   FMongo.dropDatabase('testdb2');
@@ -144,7 +144,7 @@ begin
   AHostName := '127.0.0.1';
   AUserName := 'testuser';
   APassword := 'testpwd';
-  ADBName := 'testdb';
+  ADBName := 'admin';
   ReturnValue := FMongoPool.Acquire(AHostName);
   AMongo := ReturnValue.Mongo;
   Check(AMongo <> nil, 'Call to FMongoPool.Acquire should return value <> nil');
@@ -199,14 +199,14 @@ begin
   ReturnValue := FMongoPool.Acquire(AHostName);
   Check(ReturnValue.Mongo <> nil, 'Call to FMongoPool.Acquire should return value <> nil');
   Check(ReturnValue.Mongo is TMongoReplSet, 'ReturnValue.Mongo object should be of type TMongoReplSet');
-  Check(ReturnValue.Mongo.addUser('testuser', 'testpassword', 'testdb'), 'Failed adding user testuser');
+  Check(ReturnValue.Mongo.addUser('testuser', 'testpassword', 'admin'), 'Failed adding user testuser');
   FMongoPool.Release(ReturnValue);
-  ReturnValue := FMongoPool.Acquire('foo@' + AHostName + '|testuser|testpassword|testdb');
+  ReturnValue := FMongoPool.Acquire('foo@' + AHostName + '|testuser|testpassword|admin');
   Check(ReturnValue.Mongo <> nil, 'Call to FMongoPool.Acquire should return value <> nil');
   Check(ReturnValue.Mongo is TMongoReplSet, 'ReturnValue.Mongo object should be of type TMongoReplSet');
   FMongoPool.Release(ReturnValue);
   try
-    ReturnValue := FMongoPool.Acquire(AHostName + '|testuser|testpassword_bad|testdb');
+    ReturnValue := FMongoPool.Acquire(AHostName + '|testuser|testpassword_bad|admin');
     Fail('Code should never get here. Failure should happen when acquiring connection with wrong password');
   except
     on E : Exception do Check(not (E is ETestFailure));

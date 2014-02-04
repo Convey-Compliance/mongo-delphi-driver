@@ -101,6 +101,7 @@ type
   Tmongo_count = function (c: Pointer; db: PAnsiChar; collection: PAnsiChar; query: Pointer): Double; cdecl;
   Tmongo_create_index = function (c: Pointer; ns: PAnsiChar; key: Pointer; name : PAnsiChar; options: Integer; ttl : integer; res: Pointer): Integer; cdecl;
   Tmongo_cmd_add_user = function (c: Pointer; db: PAnsiChar; Name: PAnsiChar; password: PAnsiChar): Integer; cdecl;
+  Tmongo_cmd_create_user = function (c: Pointer; db: PAnsiChar; Name: PAnsiChar; password: PAnsiChar; roles : PPAnsiChar): Integer; cdecl;
   Tmongo_cmd_authenticate = function (c: Pointer; db: PAnsiChar; Name: PAnsiChar; password: PAnsiChar): Integer; cdecl;
   Tmongo_run_command = function (c: Pointer; db: PAnsiChar; command: Pointer; res: Pointer): Integer; cdecl;
   Tmongo_cmd_get_last_error = function (c: Pointer; db: PAnsiChar; res: Pointer): Integer; cdecl;
@@ -275,6 +276,7 @@ var
   mongo_count : Tmongo_count;
   mongo_create_index : Tmongo_create_index;
   mongo_cmd_add_user : Tmongo_cmd_add_user;
+  mongo_cmd_create_user : Tmongo_cmd_create_user;
   mongo_cmd_authenticate : Tmongo_cmd_authenticate;
   mongo_run_command : Tmongo_run_command;
   mongo_cmd_get_last_error : Tmongo_cmd_get_last_error;
@@ -455,6 +457,7 @@ var
   function mongo_count(c: Pointer; db: PAnsiChar; collection: PAnsiChar; query: Pointer): Double; cdecl; external Default_MongoCDLL;
   function mongo_create_index(c: Pointer; ns: PAnsiChar; key: Pointer; name : PAnsiChar; options: Integer; ttl : integer; res: Pointer): Integer; cdecl; external Default_MongoCDLL;
   function mongo_cmd_add_user(c: Pointer; db: PAnsiChar; Name: PAnsiChar; password: PAnsiChar): Integer; cdecl; external Default_MongoCDLL;
+  function mongo_cmd_create_user(c: Pointer; db: PAnsiChar; Name: PAnsiChar; password: PAnsiChar; roles : PPAnsiChar): Integer; cdecl; external Default_MongoCDLL;
   function mongo_cmd_authenticate(c: Pointer; db: PAnsiChar; Name: PAnsiChar; password: PAnsiChar): Integer; cdecl; external Default_MongoCDLL;
   function mongo_run_command(c: Pointer; db: PAnsiChar; command: Pointer; res: Pointer): Integer; cdecl; external Default_MongoCDLL;
   function mongo_cmd_get_last_error(c: Pointer; db: PAnsiChar; res: Pointer): Integer; cdecl; external Default_MongoCDLL;
@@ -689,6 +692,7 @@ begin
   mongo_count := GetProcAddress(HMongoDBDll, 'mongo_count');
   mongo_create_index := GetProcAddress(HMongoDBDll, 'mongo_create_index');
   mongo_cmd_add_user := GetProcAddress(HMongoDBDll, 'mongo_cmd_add_user');
+  mongo_cmd_create_user := GetProcAddress(HMongoDBDll, 'mongo_cmd_create_user');
   mongo_cmd_authenticate := GetProcAddress(HMongoDBDll, 'mongo_cmd_authenticate');
   mongo_run_command := GetProcAddress(HMongoDBDll, 'mongo_run_command');
   mongo_cmd_get_last_error := GetProcAddress(HMongoDBDll, 'mongo_cmd_get_last_error');

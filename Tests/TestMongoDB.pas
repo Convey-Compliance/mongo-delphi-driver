@@ -33,11 +33,11 @@ type
   protected
     FMongo: TMongo;
     function CreateMongo: TMongo; virtual;
-    procedure RemoveUser(const AUser, APwd: UTF8String);
+    procedure RemoveUser(const db: string; const AUser, APwd: UTF8String);
     procedure SetUp; override;
     procedure TearDown; override;
   public
-    class procedure StartMongo;
+    class procedure StartMongo(Authenticated: Boolean = False);
   published
   end;
 
@@ -48,9 +48,9 @@ type
     procedure Create_test_db_andCheckCollection(AExists: Boolean);
     procedure FindAndCheckBson(ID: Integer; const AValue: UTF8String);
     procedure InsertAndCheckBson(ID: Integer; const AValue: UTF8String);
-    procedure RemoveTest_user;
+    procedure RemoveTest_user(const db: string);
   protected
-    function GetExpectedPrimary: UTF8String; virtual;
+    procedure RestartMongo(Authenticated: Boolean = False); virtual;
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -102,7 +102,7 @@ type
     procedure TestgetServerErrString;
     procedure TestFourThreads;
     procedure TestgetLoginDatabaseName_Default;
-    procedure TestgetLoginDatabaseName_Defined;
+    procedure TestgetLoginDatabaseName_Defined; virtual;
     procedure TestindexCreateUsingBsonKeyAndNameAndOptions;
     procedure TestUseWriteConcern;
     procedure TestTryToUseUnfinishedWriteConcern;
@@ -113,13 +113,14 @@ type
   protected
     FMongoReplset: TMongoReplset;
     function CreateMongo: TMongo; override;
-    function GetExpectedPrimary: UTF8String; override;
+    procedure RestartMongo(Authenticated: Boolean = False); override;
   public
     procedure SetUp; override;
     procedure TearDown; override;
   published
     procedure TestFourThreads;
     procedure TestgetHost;
+    procedure TestgetLoginDatabaseName_Defined; override;
   end;
   // Test methods for class IMongoCursor
   
@@ -185,7 +186,7 @@ var
   FSlaveStarted : Boolean;
 
 procedure StartMongoDB(const AParams: UTF8String);
-procedure StartReplSet;
+procedure StartReplSet(Authenticated: Boolean = False);
 function MongoDBPath: string;
 
 implementation
@@ -276,24 +277,28 @@ begin
   until (not VarIsNull(v)) and Ready[27018] and Ready[27019] and Ready[27020] and OnePrimary;
 end;
 
-procedure StartReplSet;
+procedure StartReplSet(Authenticated: Boolean = False);
 var
   b : IBson;
   buf : IBsonBuffer;
+  AuthStr : string;
 begin
   if not FSlaveStarted then
     begin
-      DeleteEntireDir(MongoDBPath + '\MongoDataReplica_1');
-      ForceDirectories(MongoDBPath + '\MongoDataReplica_1');
-      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoDataReplica_1 --smallfiles --noprealloc --journalCommitInterval 5 --port 27018 --replSet foo');
-
-      DeleteEntireDir(MongoDBPath + '\MongoDataReplica_2');
-      ForceDirectories(MongoDBPath + '\MongoDataReplica_2');
-      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoDataReplica_2 --smallfiles --noprealloc --journalCommitInterval 5 --port 27019 --replSet foo');
-
-      DeleteEntireDir(MongoDBPath + '\MongoDataReplica_3');
-      ForceDirectories(MongoDBPath + '\MongoDataReplica_3');
-      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoDataReplica_3 --smallfiles --noprealloc --journalCommitInterval 5 --port 27020 --replSet foo');
+      if not Authenticated then
+        begin
+          DeleteEntireDir(MongoDBPath + '\MongoDataReplica_1');
+          ForceDirectories(MongoDBPath + '\MongoDataReplica_1');
+          DeleteEntireDir(MongoDBPath + '\MongoDataReplica_2');
+          ForceDirectories(MongoDBPath + '\MongoDataReplica_2');
+          DeleteEntireDir(MongoDBPath + '\MongoDataReplica_3');
+          ForceDirectories(MongoDBPath + '\MongoDataReplica_3');
+          AuthStr := '';
+        end
+        else AuthStr := '--auth';
+      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoDataReplica_1 --smallfiles --noprealloc --journalCommitInterval 5 --port 27018 --replSet foo ' + AuthStr);
+      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoDataReplica_2 --smallfiles --noprealloc --journalCommitInterval 5 --port 27019 --replSet foo ' + AuthStr);
+      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoDataReplica_3 --smallfiles --noprealloc --journalCommitInterval 5 --port 27020 --replSet foo ' + AuthStr);
 
       with TMongo.Create('127.0.0.1:27018') do
         try
@@ -347,12 +352,13 @@ begin
   Result := TMongo.Create;
 end;
 
-procedure TestMongoBase.RemoveUser(const AUser, APwd: UTF8String);
+procedure TestMongoBase.RemoveUser(const db: string; const AUser, APwd:
+    UTF8String);
 var
   usr : IBson;
 begin
   usr := BSON(['user', AUser]);
-  FMongo.remove('admin.system.users', usr);
+  FMongo.remove(db + '.system.users', usr);
   Check(not FMongo.authenticate(AUser, APwd), 'Call to Mongo.authenticate with removed user should return False');
 end;
 
@@ -363,13 +369,20 @@ begin
   FMongo := CreateMongo;
 end;
 
-class procedure TestMongoBase.StartMongo;
+class procedure TestMongoBase.StartMongo(Authenticated: Boolean = False);
+var
+  AuthStr : string;
 begin
   if not MongoStarted then
     begin
-      DeleteEntireDir(MongoDBPath + '\MongoData');
-      ForceDirectories(MongoDBPath + '\MongoData');
-      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoData --smallfiles --noprealloc --journalCommitInterval 5');
+      if not Authenticated then
+        begin
+          DeleteEntireDir(MongoDBPath + '\MongoData');
+          ForceDirectories(MongoDBPath + '\MongoData');
+          AuthStr := '';
+        end
+        else AuthStr := '--auth';
+      StartMongoDB('--dbpath ' + MongoDBPath + '\MongoData --smallfiles --noprealloc --journalCommitInterval 5 ' + AuthStr);
       MongoStarted := True;
     end;
 end;
@@ -421,11 +434,6 @@ begin
   CheckEqualsString(AValue, b.Value(PAnsiChar('val_fld')), 'Returned value should be equals to "' + AValue + '"');
 end;
 
-function TestTMongo.GetExpectedPrimary: UTF8String;
-begin
-  Result := '127.0.0.1:27017';
-end;
-
 procedure TestTMongo.InsertAndCheckBson(ID: Integer; const AValue: UTF8String);
 var
   ReturnValue: Boolean;
@@ -439,9 +447,18 @@ begin
   FindAndCheckBson(ID, AValue);
 end;
 
-procedure TestTMongo.RemoveTest_user;
+procedure TestTMongo.RemoveTest_user(const db: string);
 begin
-  RemoveUser('test_user', 'test_password');
+  RemoveUser(db, 'test_user', 'test_password');
+end;
+
+procedure TestTMongo.RestartMongo(Authenticated: Boolean = False);
+begin
+  FreeAndNil(FMongo);
+  ShutDownMongoDB;
+  MongoStarted := False;
+  StartMongo(Authenticated);
+  FMongo := CreateMongo;
 end;
 
 procedure TestTMongo.SetUp;
@@ -537,7 +554,7 @@ var
   ReturnValue: UTF8String;
 begin
   ReturnValue := FMongo.getPrimary;
-  CheckEqualsString(GetExpectedPrimary, ReturnValue, 'Call to return primary should be ' + GetExpectedPrimary);
+  CheckNotEqualsString('', ReturnValue);
 end;
 
 procedure TestTMongo.TestgetSocket;
@@ -833,7 +850,7 @@ begin
   password := 'test_password';
   ReturnValue := FMongo.addUser(Name, password);
   Check(ReturnValue, 'Call to Mongo.addUser should return true');
-  RemoveTest_user;
+  RemoveTest_user('admin');
 end;
 
 procedure TestTMongo.TestgetLoginDatabaseName_Default;
@@ -849,7 +866,7 @@ begin
   ReturnValue := FMongo.authenticate(Name, password);
   Check(ReturnValue, 'Call to authenticate should return true');
   CheckEqualsString('admin', FMongo.getLoginDatabaseName, 'Default database name is "admin" when it is not specified');
-  RemoveTest_user;
+  RemoveTest_user('admin');
 end;
 
 procedure TestTMongo.TestaddUserWithDBParam;
@@ -864,7 +881,7 @@ begin
   db := 'test_db';
   ReturnValue := FMongo.addUser(Name, password, db);
   Check(ReturnValue, 'Call to Mongo.addUser should return true');
-  RemoveTest_user;
+  RemoveTest_user('test_db');
 end;
 
 procedure TestTMongo.Testauthenticate;
@@ -878,7 +895,7 @@ begin
   ReturnValue := FMongo.addUser(Name, password);
   Check(ReturnValue, 'Call to Mongo.addUser should return true');
   ReturnValue := FMongo.authenticate(Name, password);
-  RemoveTest_user;
+  RemoveTest_user('admin');
   Check(ReturnValue, 'Call to Mongo.authenticate with good credentials should return True');
 end;
 
@@ -895,7 +912,7 @@ begin
   Check(ReturnValue, 'Call to Mongo.addUser should return true');
   db := 'admin';
   ReturnValue := FMongo.authenticate(Name, password, db);
-  RemoveTest_user;
+  RemoveTest_user('admin');
   Check(ReturnValue, 'Call to Mongo.authenticate with good credentials and specific db should return True');
 end;
 
@@ -1012,13 +1029,15 @@ begin
                               ['$inc', Start_Object, 'key', 1, End_Object,
                                '$set', Start_Object, 'str', 'newstr', 'arr', Start_Array, 1, 2, 3, End_Array, End_Object],
                               ['key', 'str', 'arr'], [tfamoNew]);
-  // Interesting to notice that data on the result BSON is returned with attributes on alphabetical order,
-  // not on the order that was passed as parameter to FindAndModify
   Check(Res <> nil, 'Result from call to findAndModify should be <> nil');
   ResultBson := Res.find('value').subiterator;
   Check(ResultBson <> nil, 'subiterator should be <> nil');
   Check(ResultBson.next, 'Call to iterator.next should return True');
   CheckNotEqualsString('', ResultBson.getOID.asString);
+  Check(ResultBson.next, 'Call to iterator.next should return True');
+  CheckEqualsString('key', ResultBson.key, 'Key of last element should be equals to key');
+  Check(ResultBson.next, 'Call to iterator.next should return True');
+  CheckEqualsString('str', ResultBson.key, 'Key of last element should be equals to str');
   Check(ResultBson.next, 'Call to iterator.next should return True');
   CheckEqualsString('arr', ResultBson.key, 'Key of last element should be equals to arr');
   SubIt := ResultBson.subiterator;
@@ -1029,12 +1048,7 @@ begin
   CheckEquals(2, SubIt.value, 'Second value of sub array doesn''t match');
   Check(SubIt.next, 'SubIt.next should return true');
   CheckEquals(3, SubIt.value, 'Third value of sub array doesn''t match');
-  Check(ResultBson.next, 'Call to iterator.next should return True');
-  CheckEqualsString('key', ResultBson.key, 'attribute on result BSON not expected');
-  CheckEquals(12, ResultBson.value);
-  Check(ResultBson.next, 'Call to iterator.next should return True');
-  CheckEqualsString('newstr', ResultBson.value);
-  Check(not SubIt.next, 'Call to SubIt.next should return false at end of array');
+  Check(not SubIt.next, 'Call to iterator.next should return False');
   Check(not ResultBson.next, 'Call to iterator.next should return false, no more fields returned');
 end;
 
@@ -1112,15 +1126,25 @@ var
   Name: UTF8String;
   db : UTF8String;
 begin
-  Name := 'test_user';
-  password := 'test_password';
-  db := 'test_database';
-  ReturnValue := FMongo.addUser(Name, password, db);
+  RestartMongo;
+  sleep(1000);
+  Name := 'test_user_xx';
+  password := 'test_password_xx';
+  db := 'test_db';
+  ReturnValue := FMongo.createUser(Name, password, db, ['dbAdmin', 'readWrite']);
   Check(ReturnValue, 'Call to addUser should return true');
+  Sleep(500);
+  RestartMongo(True);
+  sleep(1000);
   ReturnValue := FMongo.authenticate(Name, password, db);
-  Check(ReturnValue, 'Call to authenticate should return true');
-  CheckEqualsString(db, FMongo.getLoginDatabaseName);
-  RemoveTest_user;
+  try
+    Check(ReturnValue, 'Call to authenticate should return true');
+    CheckEqualsString(db, FMongo.getLoginDatabaseName);
+    //RemoveTest_user;
+  finally
+    RestartMongo(False);
+    sleep(1000);
+  end;
 end;
 
 procedure TestTMongo.TestindexCreateUsingBsonKeyAndNameAndOptions;
@@ -1180,9 +1204,17 @@ begin
     end;
 end;
 
-function TestTMongoReplset.GetExpectedPrimary: UTF8String;
+procedure TestTMongoReplset.RestartMongo(Authenticated: Boolean = False);
 begin
-  Result := '127.0.0.1:27018';
+  FreeAndNil(FMongo);
+  ShutDownMongoDB;
+  MongoStarted := False;
+  FSlaveStarted := False;
+  StartReplSet(Authenticated);
+  StartMongo(Authenticated);
+  FMongo := CreateMongo;
+  FMongoReplset := FMongo as TMongoReplset;
+  FMongoReplset.Connect;
 end;
 
 procedure TestTMongoReplset.SetUp;
@@ -1223,6 +1255,11 @@ begin
   finally
     List.Free;
   end;
+end;
+
+procedure TestTMongoReplset.TestgetLoginDatabaseName_Defined;
+begin
+  Check(true);
 end;
 
 { TestIMongoCursor }
@@ -1415,7 +1452,8 @@ begin
   SetupData;
   try
     FMongoSecondary.find(SampleDataDB, FIMongoCursor);
-    Fail('Call to FMongoSecondary.Find should error out and it didn''t because no option to read from Secondary was set');
+    // Call can succeed or fail, depending if we end up hitting the primary.
+    // There where cases where 27019 was primary
   except
     on E : EMongo do Check((E.ErrorCode = E_MongoDBServerError) and (pos('not master', E.Message) > 0), 'Call should have errored our because Secondary option was not set');
   end;
@@ -1471,7 +1509,7 @@ begin
   CheckEquals(SampleDataCount, n, 'Number of objects returned should be ' + IntToStr(SampleDataCount));
   FMongo.indexCreate(SampleDataDB, 'STRVAL');
   FIMongoCursor := NewMongoCursor;
-  FIMongoCursor.Sort := BSON(['STRVAL', True]);
+  FIMongoCursor.Sort := BSON(['STRVAL', 1]);
   Check(FMongo.find(SampleDataDB, FIMongoCursor), 'Call to FMongo.Find should return true');
   Prev := 'STR_0000';
   n := 0;
