@@ -84,7 +84,7 @@ type
 
   IOidGenerator = interface
     ['{2422BA01-8210-4547-BE66-1EB42CA71F4A}']
-    function getHandle : Pointer;
+    function getHandle : Pointer; // This could return nil if no DLL provided generator
     procedure gen(oid : IBsonOID);
     property Handle : Pointer read getHandle;
   end;
@@ -387,7 +387,7 @@ function NewBsonCodeWScope(const acode: UTF8String; ascope: IBson): IBsonCodeWSc
   CODEWSCOPE field. }
 function NewBsonCodeWScope(i: IBsonIterator): IBsonCodeWScope; overload;
 
-{ Generate an Object ID. When using with ServiceBus, mandatory to pass IOidGenerator interface }
+{ Generate an Object ID. When using with ServiceBus, *mandatory* to pass IOidGenerator interface }
 function NewBsonOID({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}): IBsonOID; overload;
 { Create an ObjectID from a 24-digit hex string }
 function NewBsonOID(const s : UTF8String): IBsonOID; overload;
