@@ -82,6 +82,13 @@ type
     property Value : PBsonOIDValue read getValue;
   end;
 
+  IOidGenerator = interface
+    ['{2422BA01-8210-4547-BE66-1EB42CA71F4A}']
+    function getHandle : Pointer;
+    procedure gen(oid : IBsonOID);
+    property Handle : Pointer read getHandle;
+  end;
+
   { A TBsonCodeWScope is used to hold javascript code and its associated scope.
     See TBsonIterator.getCodeWScope() }
   IBsonCodeWScope = interface
@@ -358,6 +365,9 @@ procedure AppendToVarRecArray(const Arr : array of const; var TargetArray : TVar
                       '}' ]);
 #) *)
 
+function DefaultOidGenerator: IOidGenerator; // Use this to generate OIDs using MongoDB global generator
+function NullOidGenerator: IOidGenerator; // Use this to create an OID without generating a default OID
+
 function BSON(const x: array of Variant): IBson;
 
 { Create an empty TBsonBuffer ready to have fields appended.
@@ -377,8 +387,8 @@ function NewBsonCodeWScope(const acode: UTF8String; ascope: IBson): IBsonCodeWSc
   CODEWSCOPE field. }
 function NewBsonCodeWScope(i: IBsonIterator): IBsonCodeWScope; overload;
 
-{ Generate an Object ID }
-function NewBsonOID: IBsonOID; overload;
+{ Generate an Object ID. When using with ServiceBus, mandatory to pass IOidGenerator interface }
+function NewBsonOID({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}): IBsonOID; overload;
 { Create an ObjectID from a 24-digit hex string }
 function NewBsonOID(const s : UTF8String): IBsonOID; overload;
 { Create an Object ID from a TBsonIterator pointing to an oid field }
@@ -475,7 +485,7 @@ type
   private
     Value: TBsonOIDValue;
   public
-    constructor Create; overload;
+    constructor Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}); overload;
     constructor Create(const s: UTF8String); overload;
     constructor Create(i: IBsonIterator); overload;
     function asString: UTF8String;
@@ -658,12 +668,19 @@ type
     property Handle: Pointer read getHandle;
   end;
 
+  TMongoGlobalOidGenerator = class(TInterfacedObject, IOidGenerator)
+  protected
+    function getHandle: Pointer;
+    procedure gen(oid : IBsonOID);
+  end;
+
 var
   AStart_Object : TObject;
   AEnd_Object : TObject;
   AStart_Array : TObject;
   AEnd_Array : TObject;
   ANull_Element : TObject;
+  ADefaultOidGenerator : IOidGenerator;
 
 {$IFDEF DELPHIXE2}
 function Pos(const SubStr, Str: UTF8String): Integer;
@@ -679,13 +696,18 @@ end;
 
 { TBsonOID }
 
-constructor TBsonOID.Create;
+constructor TBsonOID.Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF});
 begin
   inherited Create;
   {$IFDEF OnDemandMongoCLoad}
   InitMongoDBLibrary;
   {$ENDIF}
+  {$IFDEF SVCBUS}
+  if OidGenerator <> nil then
+    OidGenerator.gen(self);
+  {$ELSE}
   bson_oid_gen(@Value);
+  {$ENDIF}
 end;
 
 constructor TBsonOID.Create(const s: UTF8String);
@@ -1882,9 +1904,9 @@ begin
   Result := TBsonCodeWScope.Create(i);
 end;
 
-function NewBsonOID: IBsonOID; overload;
+function NewBsonOID({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}): IBsonOID; overload;
 begin
-  Result := TBsonOID.Create;
+  Result := TBsonOID.Create({$IFDEF SVCBUS} OidGenerator {$ENDIF});
 end;
 
 function NewBsonOID(const s : UTF8String): IBsonOID; overload;
@@ -1986,6 +2008,29 @@ end;
 function Null_Element : TObject;
 begin
   Result := ANull_Element;
+end;
+
+procedure TMongoGlobalOidGenerator.gen(oid : IBsonOID);
+var
+  oidValue : TBsonOIDValue;
+begin
+  bson_oid_gen(@oidValue);
+  oid.setValue(oidValue);
+end;
+
+function TMongoGlobalOidGenerator.getHandle: Pointer;
+begin
+  Result := nil;
+end;
+
+function DefaultOidGenerator: IOidGenerator;
+begin
+  Result := ADefaultOidGenerator;
+end;
+
+function NullOidGenerator: IOidGenerator;
+begin
+  Result := nil;
 end;
 
 { Utility functions to create Dynamic Arrays from Open Array parameters }
@@ -2134,7 +2179,9 @@ initialization
   AStart_Array := TObject.Create;
   AEnd_Array := TObject.Create;
   ANull_Element := TObject.Create;
+  ADefaultOidGenerator := TMongoGlobalOidGenerator.Create;
 finalization
+  ADefaultOidGenerator := nil;
   absonEmpty := nil;
   ANull_Element.Free;
   AStart_Object.Free;
