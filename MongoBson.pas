@@ -1168,7 +1168,9 @@ begin
     varBoolean:
       Result := append(Name, Boolean(Value));
     varString, varOleStr {$IFDEF DELPHI2009}, varUString {$ENDIF}:
-      Result := appendStr(Name, UTF8String(Value));
+      // Need to cast Variant to string to don't lose Unicode encoding. Implicit cast does first Ansi
+      // and Unicode chars are lost resulting on string with ????
+      Result := appendStr(Name, UTF8String(String(Value)));
     varVariant : Result := appendVariant(Name, Value);
     else
       raise Exception.Create(STBsonAppendVariantTypeNotSupport +
