@@ -20,7 +20,7 @@ type
 implementation
 
 uses
-  MongoBson, MongoApi, System.Classes;
+  MongoBson, MongoApi, Classes;
 
 type
   TEnumeration = (eFirst, eSecond);
@@ -123,7 +123,11 @@ begin
     Obj.The_02_AnsiChar := 'B';
     Obj.The_03_Enumeration := eSecond;
     Obj.The_04_Float := 1.5;
+    {$IFDEF DELPHIXE}
     Obj.The_05_String := 'дом';
+    {$ELSE}
+    Obj.The_05_String := 'home';
+    {$ENDIF}
     Obj.The_06_ShortString := 'Hello';
     Obj.The_07_Set := [eFirst, eSecond];
     Obj.The_08_SubObject.TheInt := 12;
@@ -131,10 +135,19 @@ begin
     Obj.The_10_WChar := 'д';
     Obj.The_11_AnsiString := 'Hello World';
     Obj.The_12_WideString := 'дом дом';
+    {$IFDEF DELPHIXE}
     Obj.The_13_StringList.Add('дом');
     Obj.The_13_StringList.Add('ом');
+    {$ELSE}
+    Obj.The_13_StringList.Add('home');
+    Obj.The_13_StringList.Add('ome');
+    {$ENDIF}
     Obj.The_14_VariantAsInteger := 14;
+    {$IFDEF DELPHIXE}
     Obj.The_15_VariantAsString := 'дом дом дом';
+    {$ELSE}
+    Obj.The_15_VariantAsString := 'alo';
+    {$ENDIF}
     v := VarArrayCreate([0, 1], varInteger);
     v[0] := 16;
     v[1] := 22;
@@ -170,7 +183,11 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_05_String', it.key);
+    {$IFDEF DELPHIXE}
     CheckEqualsString('дом', it.Value, 'Iterator should be equals to "дом"');
+    {$ELSE}
+    CheckEqualsString('home', it.Value, 'Iterator should be equals to "home"');
+    {$ENDIF}
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_06_ShortString', it.key);
@@ -196,7 +213,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_10_WChar', it.key);
-    CheckEqualsString('д', it.Value, 'Iterator should be equals to "д"');
+    CheckEqualsWideString('д', UTF8Decode(it.AsUTF8String), 'Iterator does''t match');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_11_AnsiString', it.key);
@@ -204,16 +221,22 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_12_WideString', it.key);
-    CheckEqualsString('дом дом', it.Value, 'Iterator should be equals to "дом дом"');
+    CheckEqualsWideString('дом дом', UTF8Decode(it.AsUTF8String), 'Iterator doesn''t match');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_13_StringList', it.key);
     Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
-    CheckEqualsString('дом', SubIt.Value, 'Iterator should be equals to "дом"');
+    {$IFDEF DELPHIXE}
+    CheckEqualsString('дом', SubIt.AsUTF8String, 'Iterator should be equals to "дом"');
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEqualsString('ом', SubIt.Value, 'Iterator should be equals to "ом"');
+    {$ELSE}
+    CheckEqualsString('home', SubIt.Value, 'Iterator should be equals to "home"');
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEqualsString('ome', SubIt.Value, 'Iterator should be equals to "ome"');
+    {$ENDIF}
     Check(not SubIt.next, 'Iterator should be at end');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
@@ -222,7 +245,11 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_15_VariantAsString', it.key);
-    CheckEqualsString('дом дом дом', it.Value, 'Iterator should be equals to "дом дом дом"');
+    {$IFDEF DELPHIXE}
+    CheckEqualsWideString('дом дом дом', UTF8Decode(it.AsUTF8String), 'Iterator doesn''t match');
+    {$ELSE}
+    CheckEqualsWideString('alo', UTF8Decode(it.AsUTF8String), 'Iterator doesn''t match');
+    {$ENDIF}
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_16_VariantAsArray', it.key);
