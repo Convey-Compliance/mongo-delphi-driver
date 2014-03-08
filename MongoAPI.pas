@@ -13,8 +13,10 @@ const
 type
   {$IFNDEF DELPHI2007}
   UTF8String = AnsiString;
-  NativeUInt = Cardinal;
   UInt64 = Int64;
+  {$ENDIF}
+  {$IFNDEF DELPHIXE}
+  NativeUInt = Cardinal;
   {$ENDIF}
   PBsonOIDValue = ^TBsonOIDValue;
   TBsonOIDValue = array[0..11] of Byte;
