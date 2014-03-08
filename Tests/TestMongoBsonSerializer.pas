@@ -50,6 +50,10 @@ type
     FThe_11_AnsiString: AnsiString;
     FThe_12_WideString: WideString;
     FThe_13_StringList: TStringList;
+    FThe_14_VariantAsInteger : Variant;
+    FThe_15_VariantAsString: Variant;
+    FThe_16_VariantAsArray : Variant;
+    FThe_17_VariantTwoDimArray : Variant;
   public
     constructor Create;
     destructor Destroy; override;
@@ -68,6 +72,10 @@ type
     property The_11_AnsiString: AnsiString read FThe_11_AnsiString write FThe_11_AnsiString;
     property The_12_WideString: WideString read FThe_12_WideString write FThe_12_WideString;
     property The_13_StringList: TStringList read FThe_13_StringList write FThe_13_StringList;
+    property The_14_VariantAsInteger : Variant read FThe_14_VariantAsInteger write FThe_14_VariantAsInteger;
+    property The_15_VariantAsString: Variant read FThe_15_VariantAsString write FThe_15_VariantAsString;
+    property The_16_VariantAsArray: Variant read FThe_16_VariantAsArray write FThe_16_VariantAsArray;
+    property The_17_VariantTwoDimArray: Variant read FThe_17_VariantTwoDimArray write FThe_17_VariantTwoDimArray;
   end;
   {$M-}
 
@@ -87,7 +95,7 @@ end;
 
 procedure TestTMongoBsonSerializer.SetUp;
 begin
-  FSerializer := TBaseBsonSerializer.Create;
+  FSerializer := CreateSerializer(TObject);
 end;
 
 procedure TestTMongoBsonSerializer.TearDown;
@@ -104,6 +112,7 @@ procedure TestTMongoBsonSerializer.TestSerializePrimitiveTypes;
 var
   it, SubIt : IBsonIterator;
   Obj : TTestObject;
+  v : Variant;
 begin
   FSerializer.Target := NewBsonBuffer();
   Obj := TTestObject.Create;
@@ -124,6 +133,18 @@ begin
     Obj.The_12_WideString := 'дом дом';
     Obj.The_13_StringList.Add('дом');
     Obj.The_13_StringList.Add('ом');
+    Obj.The_14_VariantAsInteger := 14;
+    Obj.The_15_VariantAsString := 'дом дом дом';
+    v := VarArrayCreate([0, 1], varInteger);
+    v[0] := 16;
+    v[1] := 22;
+    Obj.The_16_VariantAsArray := v;
+    v := VarArrayCreate([0, 1, 0, 1], varInteger);
+    v[0, 0] := 16;
+    v[0, 1] := 22;
+    v[1, 0] := 33;
+    v[1, 1] := 44;
+    Obj.The_17_VariantTwoDimArray := v;
     FSerializer.Serialize('');
 
     it := NewBsonIterator(FSerializer.Target.finish);
@@ -193,6 +214,24 @@ begin
     CheckEqualsString('дом', SubIt.Value, 'Iterator should be equals to "дом"');
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEqualsString('ом', SubIt.Value, 'Iterator should be equals to "ом"');
+    Check(not SubIt.next, 'Iterator should be at end');
+
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('The_14_VariantAsInteger', it.key);
+    CheckEquals(14, it.value, 'Iterator should be equals to 14');
+
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('The_15_VariantAsString', it.key);
+    CheckEqualsString('дом дом дом', it.Value, 'Iterator should be equals to "дом дом дом"');
+
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('The_16_VariantAsArray', it.key);
+    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    SubIt := it.subiterator;
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(16, SubIt.Value, 'Iterator should be equals to 16');
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(22, SubIt.Value, 'Iterator should be equals to 22');
     Check(not SubIt.next, 'Iterator should be at end');
 
     Check(not it.next, 'Iterator should be at end');

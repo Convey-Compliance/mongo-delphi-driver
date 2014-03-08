@@ -12,64 +12,83 @@ type
   private
     FSource: TObject;
     FTarget: IBsonBuffer;
-    procedure SerializeObject(APropInfo: PPropInfo);
-    procedure SerializePropInfo(APropInfo: PPropInfo);
-    procedure SerializeSet(APropInfo: PPropInfo);
   public
-    constructor Create(ASource: TObject; ATarget: IBsonBuffer); overload; virtual;
     constructor Create; overload; virtual;
-    procedure Serialize(const AName: String); virtual;
+    procedure Serialize(const AName: String); virtual; abstract;
     property Source: TObject read FSource write FSource;
     property Target: IBsonBuffer read FTarget write FTarget;
   end;
 
-  TDefaultObjectBsonSerializer = class(TBaseBsonSerializer)
-  public
-    procedure Serialize(const AName: String); override;
-  end;
-
-  TStringListBsonSerializer = class(TBaseBsonSerializer)
+  TPrimitivesBsonSerializer = class(TBaseBsonSerializer)
+  private
+    procedure SerializeObject(APropInfo: PPropInfo);
+    procedure SerializePropInfo(APropInfo: PPropInfo);
+    procedure SerializeSet(APropInfo: PPropInfo);
+    procedure SerializeVariant(APropInfo: PPropInfo; const AName: String; const AVariant: Variant);
   public
     procedure Serialize(const AName: String); override;
   end;
 
 procedure RegisterClassSerializer(AClass : TClass; ASerializer : TBaseBsonSerializerClass);
 procedure UnRegisterClassSerializer(AClass: TClass; ASerializer : TBaseBsonSerializerClass);
+function CreateSerializer(AClass : TClass): TBaseBsonSerializer;
 
 implementation
 
 uses
-  Classes, System.Generics.Collections;
+  Variants, Classes, System.Generics.Collections;
+
+type
+  TSerializerClassList = TList<TPair<TClass, TBaseBsonSerializerClass>>;
+  TSerializerClassPair = TPair<TClass, TBaseBsonSerializerClass>;
+
+  TDefaultObjectBsonSerializer = class(TBaseBsonSerializer)
+  public
+    procedure Serialize(const AName: String); override;
+  end;
+
+  TStringsBsonSerializer = class(TBaseBsonSerializer)
+  public
+    procedure Serialize(const AName: String); override;
+  end;
 
 var
-  Serializers : TList<TPair<TClass, TBaseBsonSerializerClass>>;
+  Serializers : TSerializerClassList;
 
 procedure RegisterClassSerializer(AClass : TClass; ASerializer :
     TBaseBsonSerializerClass);
 begin
-  Serializers.Add(TPair<TClass, TBaseBsonSerializerClass>.Create(AClass, ASerializer));
+  Serializers.Add(TSerializerClassPair.Create(AClass, ASerializer));
 end;
 
 procedure UnRegisterClassSerializer(AClass: TClass; ASerializer : TBaseBsonSerializerClass);
 begin
-  Serializers.Remove(TPair<TClass, TBaseBsonSerializerClass>.Create(AClass, ASerializer));
+  Serializers.Remove(TSerializerClassPair.Create(AClass, ASerializer));
+end;
+
+function CreateSerializer(AClass : TClass): TBaseBsonSerializer;
+var
+  i : integer;
+begin
+  for i := Serializers.Count - 1 downto 0 do
+    if AClass.InheritsFrom(Serializers[i].Key) then
+      begin
+        Result := TBaseBsonSerializerClass(Serializers[i].Value).Create;
+        exit;
+      end;
+  raise EBsonSerializer.CreateFmt('Could not find bson serializer for class %s', [AClass.ClassName]);
 end;
 
 { TBaseBsonSerializer }
-
-constructor TBaseBsonSerializer.Create(ASource: TObject; ATarget: IBsonBuffer);
-begin
-  inherited Create;
-  FSource := ASource;
-  FTarget := ATarget;
-end;
 
 constructor TBaseBsonSerializer.Create;
 begin
   inherited Create;
 end;
 
-procedure TBaseBsonSerializer.Serialize(const AName: String);
+{ TPrimitivesBsonSerializer }
+
+procedure TPrimitivesBsonSerializer.Serialize(const AName: String);
 var
   TypeData : PTypeData;
   PropList : PPropList;
@@ -90,7 +109,7 @@ begin
   end;
 end;
 
-procedure TBaseBsonSerializer.SerializePropInfo(APropInfo: PPropInfo);
+procedure TPrimitivesBsonSerializer.SerializePropInfo(APropInfo: PPropInfo);
 begin
   case APropInfo.PropType^.Kind of
     tkInteger : Target.append(APropInfo.Name, GetOrdProp(Source, APropInfo));
@@ -100,16 +119,18 @@ begin
     tkEnumeration : Target.append(APropInfo.Name, UTF8String(GetEnumProp(Source, APropInfo)));
     tkFloat : Target.append(APropInfo.Name, GetFloatProp(Source, APropInfo));
     tkLString, tkString, tkUString, tkWString : Target.append(APropInfo.Name, GetStrProp(Source, APropInfo));
-    tkSet : begin
-      Target.startArray(APropInfo.Name);
-      SerializeSet(APropInfo);
-      Target.finishObject;
-    end;
+    tkSet :
+      begin
+        Target.startArray(APropInfo.Name);
+        SerializeSet(APropInfo);
+        Target.finishObject;
+      end;
     tkClass : SerializeObject(APropInfo);
+    tkVariant : SerializeVariant(APropInfo, APropInfo.Name, Null);
   end;
 end;
 
-procedure TBaseBsonSerializer.SerializeSet(APropInfo: PPropInfo);
+procedure TPrimitivesBsonSerializer.SerializeSet(APropInfo: PPropInfo);
 var
   S : TIntegerSet;
   i : Integer;
@@ -122,37 +143,57 @@ begin
       Target.append('', GetEnumName(TypeInfo, i));
 end;
 
-procedure TBaseBsonSerializer.SerializeObject(APropInfo: PPropInfo);
+procedure TPrimitivesBsonSerializer.SerializeObject(APropInfo: PPropInfo);
 var
-  SubSerializerClass : TBaseBsonSerializerClass;
   SubSerializer : TBaseBsonSerializer;
   SubObject : TObject;
-  i : integer;
 begin
-  SubSerializerClass := nil;
   SubObject := GetObjectProp(Source, APropInfo);
-  for i := Serializers.Count - 1 downto 0 do
-    if SubObject.InheritsFrom(Serializers[i].Key) then
-      begin
-        SubSerializerClass := Serializers[i].Value;
-        break;
-      end;
-  if SubSerializerClass = nil then
-    raise EBsonSerializer.CreateFmt('Could not find bson serializer for property %s', [APropInfo.Name]);
-  SubSerializer := SubSerializerClass.Create(SubObject, Target);
+  SubSerializer := CreateSerializer(SubObject.ClassType);
   try
+    SubSerializer.Source := SubObject;
+    SubSerializer.Target := Target;
     SubSerializer.Serialize(APropInfo.Name);
   finally
     SubSerializer.Free;
   end;
 end;
 
-{ TStringListBsonSerializer }
+procedure TPrimitivesBsonSerializer.SerializeVariant(APropInfo: PPropInfo;
+    const AName: String; const AVariant: Variant);
+var
+  v : Variant;
+  i : integer;
+begin
+  if APropInfo <> nil then
+    v := GetVariantProp(Source, APropInfo)
+  else v := AVariant;
+  case VarType(v) of
+    varNull: Target.appendNull(AName);
+    varSmallInt, varInteger, varShortInt, varByte, varWord, varLongWord: Target.append(AName, integer(v));
+    varSingle, varDouble, varCurrency: Target.append(AName, Extended(v));
+    varDate: Target.append(APropInfo.Name, TDateTime(v));
+    varOleStr, varString, varUString: Target.append(AName, UTF8String(String(v)));
+    varBoolean: Target.append(AName, Boolean(v));
+    varInt64, varUInt64: Target.append(AName, Int64(v));
+    else if VarType(v) and varArray = varArray then
+      begin
+        if VarArrayDimCount(v) > 1 then
+          exit; // We will support only one dimensional arrays
+        Target.startArray(AName);
+        for i := VarArrayLowBound(v, 1) to VarArrayHighBound(v, 1) do
+          SerializeVariant(nil, '', v[i]);
+        Target.finishObject;
+      end;
+  end;
+end;
 
-procedure TStringListBsonSerializer.Serialize(const AName: String);
+{ TStringsBsonSerializer }
+
+procedure TStringsBsonSerializer.Serialize(const AName: String);
 var
   i : integer;
-  AList : TStringList;
+  AList : TStrings;
 begin
   Target.startArray(AName);
   AList := Source as TStringList;
@@ -164,18 +205,29 @@ end;
 { TDefaultObjectBsonSerializer }
 
 procedure TDefaultObjectBsonSerializer.Serialize(const AName: String);
+var
+  PrimitivesSerializer : TPrimitivesBsonSerializer;
 begin
-  Target.startObject(AName);
-  inherited Serialize(AName);
-  Target.finishObject;
+  if AName <> '' then
+    Target.startObject(AName);
+  PrimitivesSerializer := TPrimitivesBsonSerializer.Create;
+  try
+    PrimitivesSerializer.Source := Source;
+    PrimitivesSerializer.Target := Target;
+    PrimitivesSerializer.Serialize('');
+  finally
+    PrimitivesSerializer.Free;
+  end;
+  if AName <> '' then
+    Target.finishObject;
 end;
 
 initialization
-  Serializers := TList<TPair<TClass, TBaseBsonSerializerClass>>.Create;
+  Serializers := TSerializerClassList.Create;
   RegisterClassSerializer(TObject, TDefaultObjectBsonSerializer);
-  RegisterClassSerializer(TStringList, TStringListBsonSerializer);
+  RegisterClassSerializer(TStrings, TStringsBsonSerializer);
 finalization
-  UnRegisterClassSerializer(TStringList, TStringListBsonSerializer);
+  UnRegisterClassSerializer(TStrings, TStringsBsonSerializer);
   UnRegisterClassSerializer(TObject, TDefaultObjectBsonSerializer);
   Serializers.Free;
 end.
