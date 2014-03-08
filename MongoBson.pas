@@ -253,6 +253,7 @@ type
   IBsonIterator = interface
     ['{BB81B815-9B18-43B7-A894-2FBE4F9B7562}']
     function GetAsInt64: Int64;
+    function GetAsUTF8String : UTF8String;
     function getHandle: Pointer;
     { Get a TBsonBinary object for the BINDATA field pointed to by this
       iterator. }
@@ -302,6 +303,7 @@ type
       special types. }
     function value: Variant;
     property AsInt64: Int64 read GetAsInt64;
+    property AsUTF8String : UTF8String read GetAsUTF8String;
     { Pointer to externally managed data. }
     property Handle : Pointer read getHandle;
   end;
@@ -517,6 +519,7 @@ type
     procedure checkValidHandle;
     procedure ErrorIteratorAtEnd(const AFnName: String);
     function getAsInt64: Int64;
+    function GetAsUTF8String: UTF8String;
     procedure iterateAndFillArray(i: IBsonIterator; var Result; var j: Integer;
         BSonType: TBsonType);
     procedure prepareArrayIterator(var i: IBsonIterator; var j, count: Integer;
@@ -804,6 +807,11 @@ begin
   checkValidHandle;
   CheckIteratorAtEnd('getAsInt64');
   Result := bson_iterator_long(Handle);
+end;
+
+function TBsonIterator.GetAsUTF8String: UTF8String;
+begin
+  Result := UTF8String(bson_iterator_string(Handle));
 end;
 
 function TBsonIterator.kind: TBsonType;
