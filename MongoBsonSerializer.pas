@@ -2,6 +2,8 @@ unit MongoBsonSerializer;
 
 interface
 
+{$i DelphiVersion_defines.inc}
+
 uses
   MongoBson, SysUtils, TypInfo;
 
@@ -36,11 +38,36 @@ function CreateSerializer(AClass : TClass): TBaseBsonSerializer;
 implementation
 
 uses
-  Variants, Classes, System.Generics.Collections;
+  Variants, {$IFDEF DELPHIXE} System.Generics.Collections, {$ENDIF} Classes;
+
+resourcestring
+  SObjectToSerializeHasNotPublishedProperties = 'Object to serialize has not published properties. review your logic';
+  SFailedObtainingListOfPublishedProperties = 'Failed obtaining list of published properties';
+  SFailedObtainingTypeDataOfSourceObject = 'Failed obtaining TypeData of source object';
+  SCouldNotFindBsonSerializer = 'Could not find bson serializer for class %s';
 
 type
+  {$IFDEF DELPHIXE}
   TSerializerClassList = TList<TPair<TClass, TBaseBsonSerializerClass>>;
   TSerializerClassPair = TPair<TClass, TBaseBsonSerializerClass>;
+  {$ELSE}
+  TSerializerClassPair = class
+  private
+    FKey : TClass;
+    FValue : TBaseBsonSerializerClass;
+  public
+    constructor Create(AKey : TClass; AValue : TBaseBsonSerializerClass);
+    property Key : TClass read FKey;
+    property Value : TBaseBsonSerializerClass read FValue;
+  end;
+
+  TSerializerClassList = class(TList)
+  private
+    function GetItem(Index : integer) : TSerializerClassPair;
+  public
+    property Items[Index : integer] : TSerializerClassPair read GetItem; default;
+  end;
+  {$ENDIF}
 
   TDefaultObjectBsonSerializer = class(TBaseBsonSerializer)
   public
@@ -54,6 +81,20 @@ type
 
 var
   Serializers : TSerializerClassList;
+
+{$IFNDEF DELPHIXE}
+constructor TSerializerClassPair.Create(AKey : TClass; AValue : TBaseBsonSerializerClass);
+begin
+  inherited Create;
+  FKey := AKey;
+  FValue := AValue;
+end;
+
+function TSerializerClassList.GetItem(Index : integer) : TSerializerClassPair;
+begin
+  Result := TSerializerClassPair(inherited Items[Index]);
+end;
+{$ENDIF}
 
 procedure RegisterClassSerializer(AClass : TClass; ASerializer :
     TBaseBsonSerializerClass);
@@ -76,7 +117,7 @@ begin
         Result := TBaseBsonSerializerClass(Serializers[i].Value).Create;
         exit;
       end;
-  raise EBsonSerializer.CreateFmt('Could not find bson serializer for class %s', [AClass.ClassName]);
+  raise EBsonSerializer.CreateFmt(SCouldNotFindBsonSerializer, [AClass.ClassName]);
 end;
 
 { TBaseBsonSerializer }
@@ -96,13 +137,15 @@ var
 begin
   TypeData := GetTypeData(Source.ClassInfo);
   if TypeData = nil then
-    raise EBsonSerializer.Create('Failed obtaining TypeData of source object');
-  GetMem(PropList, TypeData.PropData.PropCount * sizeof(PPropInfo));
+    raise EBsonSerializer.Create(SFailedObtainingTypeDataOfSourceObject);
+  if TypeData.PropCount <= 0 then
+    raise EBsonSerializer.Create(SObjectToSerializeHasNotPublishedProperties);
+  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
   try
     GetPropInfos(Source.ClassInfo, PropList);
     if PropList = nil then
-      raise EBsonSerializer.Create('Failed obtaining list of published properties');
-    for i := 0 to TypeData.PropData.PropCount - 1 do
+      raise EBsonSerializer.Create(SFailedObtainingListOfPublishedProperties);
+    for i := 0 to TypeData.PropCount - 1 do
       SerializePropInfo(PropList[i]);
   finally
     FreeMem(PropList);
@@ -115,10 +158,20 @@ begin
     tkInteger : Target.append(APropInfo.Name, GetOrdProp(Source, APropInfo));
     tkInt64 : Target.append(APropInfo.Name, GetInt64Prop(Source, APropInfo));
     tkChar : Target.append(APropInfo.Name, UTF8String(AnsiChar(GetOrdProp(Source, APropInfo))));
+    {$IFDEF DELPHIXE}
     tkWChar : Target.append(APropInfo.Name, UTF8String(Char(GetOrdProp(Source, APropInfo))));
+    {$ELSE}
+    tkWChar : Target.append(APropInfo.Name, UTF8Encode(WideChar(GetOrdProp(Source, APropInfo))));
+    {$ENDIF}
     tkEnumeration : Target.append(APropInfo.Name, UTF8String(GetEnumProp(Source, APropInfo)));
     tkFloat : Target.append(APropInfo.Name, GetFloatProp(Source, APropInfo));
-    tkLString, tkString, tkUString, tkWString : Target.append(APropInfo.Name, GetStrProp(Source, APropInfo));
+    {$IFDEF DELPHIXE} tkUString, {$ENDIF}
+    tkLString, tkString : Target.append(APropInfo.Name, GetStrProp(Source, APropInfo));
+    {$IFDEF DELPHIXE}
+    tkWString : Target.append(APropInfo.Name, UTF8String(GetWideStrProp(Source, APropInfo)));
+    {$ELSE}
+    tkWString : Target.append(APropInfo.Name, UTF8Encode(GetWideStrProp(Source, APropInfo)));
+    {$ENDIF}
     tkSet :
       begin
         Target.startArray(APropInfo.Name);
@@ -173,9 +226,11 @@ begin
     varSmallInt, varInteger, varShortInt, varByte, varWord, varLongWord: Target.append(AName, integer(v));
     varSingle, varDouble, varCurrency: Target.append(AName, Extended(v));
     varDate: Target.append(APropInfo.Name, TDateTime(v));
-    varOleStr, varString, varUString: Target.append(AName, UTF8String(String(v)));
+    {$IFDEF DELPHIXE} varUString, {$ENDIF}
+    varOleStr, varString: Target.append(AName, UTF8String(String(v)));
     varBoolean: Target.append(AName, Boolean(v));
-    varInt64, varUInt64: Target.append(AName, Int64(v));
+    {$IFDEF DELPHIXE} varUInt64, {$ENDIF}
+    varInt64: Target.append(AName, TVarData(v).VInt64);
     else if VarType(v) and varArray = varArray then
       begin
         if VarArrayDimCount(v) > 1 then
