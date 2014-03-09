@@ -1,5 +1,7 @@
 ﻿unit TestMongoBsonSerializer;
 
+{$i DelphiVersion_defines.inc}
+
 interface
 
 uses
@@ -9,18 +11,21 @@ type
   TestTMongoBsonSerializer = class(TTestCase)
   private
     FSerializer: TBaseBsonSerializer;
+    FDeserializer : TBaseBsonDeserializer;
   public
     procedure SetUp; override;
     procedure TearDown; override;
   published
-    procedure TestCreate;
+    procedure TestCreateDeserializer(FSerializer: TBaseBsonSerializer; const Value:
+        string);
+    procedure TestCreateSerializer;
     procedure TestSerializePrimitiveTypes;
   end;
 
 implementation
 
 uses
-  MongoBson, MongoApi, Classes;
+  MongoBson, MongoApi, Classes, SysUtils;
 
 type
   TEnumeration = (eFirst, eSecond);
@@ -54,6 +59,12 @@ type
     FThe_15_VariantAsString: Variant;
     FThe_16_VariantAsArray : Variant;
     FThe_17_VariantTwoDimArray : Variant;
+    FThe_18_VariantAsArrayEmpty: Variant;
+    FThe_19_Boolean: Boolean;
+    FThe_20_DateTime: TDateTime;
+    FThe_21_MemStream: TMemoryStream;
+    FThe_22_BlankMemStream: TMemoryStream;
+    FThe_23_EmptySet: TEnumerationSet;
   public
     constructor Create;
     destructor Destroy; override;
@@ -76,6 +87,12 @@ type
     property The_15_VariantAsString: Variant read FThe_15_VariantAsString write FThe_15_VariantAsString;
     property The_16_VariantAsArray: Variant read FThe_16_VariantAsArray write FThe_16_VariantAsArray;
     property The_17_VariantTwoDimArray: Variant read FThe_17_VariantTwoDimArray write FThe_17_VariantTwoDimArray;
+    property The_18_VariantAsArrayEmpty: Variant read FThe_18_VariantAsArrayEmpty write FThe_18_VariantAsArrayEmpty;
+    property The_19_Boolean: Boolean read FThe_19_Boolean write FThe_19_Boolean;
+    property The_20_DateTime: TDateTime read FThe_20_DateTime write FThe_20_DateTime;
+    property The_21_MemStream: TMemoryStream read FThe_21_MemStream;
+    property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
+    property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
   end;
   {$M-}
 
@@ -84,10 +101,14 @@ begin
   inherited Create;
   FThe_08_SubObject := TSubObject.Create;
   FThe_13_StringList := TStringList.Create;
+  FThe_21_MemStream := TMemoryStream.Create;
+  FThe_22_BlankMemStream := TMemoryStream.Create;
 end;
 
 destructor TTestObject.Destroy;
 begin
+  FThe_22_BlankMemStream.Free;
+  FThe_21_MemStream.Free;
   FThe_13_StringList.Free;
   FThe_08_SubObject.Free;
   inherited Destroy;
@@ -96,23 +117,37 @@ end;
 procedure TestTMongoBsonSerializer.SetUp;
 begin
   FSerializer := CreateSerializer(TObject);
+  FDeserializer := CreateDeserializer(TObject);
 end;
 
 procedure TestTMongoBsonSerializer.TearDown;
 begin
+  FDeserializer.Free;
   FSerializer.Free;
 end;
 
-procedure TestTMongoBsonSerializer.TestCreate;
+procedure TestTMongoBsonSerializer.TestCreateDeserializer(FSerializer:
+    TBaseBsonSerializer; const Value: string);
+begin
+  Check(FDeserializer <> nil, 'FDeserializer should be <> nil');
+end;
+
+procedure TestTMongoBsonSerializer.TestCreateSerializer;
 begin
   Check(FSerializer <> nil, 'FSerializer should be <> nil');
 end;
 
 procedure TestTMongoBsonSerializer.TestSerializePrimitiveTypes;
+const
+  SomeData : PAnsiChar = '1234567890qwertyuiop';
+  Buf      : PAnsiChar = '                    ';
 var
   it, SubIt : IBsonIterator;
   Obj : TTestObject;
+  Obj2 : TTestObject;
   v : Variant;
+  b : IBson;
+  bin : IBsonBinary;
 begin
   FSerializer.Target := NewBsonBuffer();
   Obj := TTestObject.Create;
@@ -158,9 +193,14 @@ begin
     v[1, 0] := 33;
     v[1, 1] := 44;
     Obj.The_17_VariantTwoDimArray := v;
+    Obj.The_18_VariantAsArrayEmpty := Null;
+    Obj.The_19_Boolean := True;
+    Obj.The_20_DateTime := Now;
+    Obj.The_21_MemStream.Write(SomeData^, length(SomeData));
     FSerializer.Serialize('');
 
-    it := NewBsonIterator(FSerializer.Target.finish);
+    b := FSerializer.Target.finish;
+    it := NewBsonIterator(b);
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_00_Int', it.key);
     CheckEquals(10, it.value, 'Iterator should be equals to 10');
@@ -261,7 +301,88 @@ begin
     CheckEquals(22, SubIt.Value, 'Iterator should be equals to 22');
     Check(not SubIt.next, 'Iterator should be at end');
 
+    Check(it.next, 'Iterator should not be at end');
+    Check(VarIsNull(it.value), 'expected null value');
+
+    Check(it.next, 'Iterator should not be at end');
+    Check(it.value, 'expected true');
+
+    Check(it.next, 'Iterator should not be at end');
+    CheckEquals(Obj.The_20_DateTime, it.value, 0.1, 'expected date to match');
+
+    Check(it.next, 'Iterator should not be at end');
+    Check(it.Kind = bsonBINDATA, 'expecting binary bson');
+    bin := it.getBinary;
+    CheckEquals(length(SomeData), bin.Len, 'binary data expected');
+    Check(CompareMem(SomeData, bin.Data, bin.len), 'memory doesn''t match');
+
+    Check(it.next, 'Iterator should not be at end');
+    Check(it.Kind = bsonBINDATA, 'expecting binary bson');
+    bin := it.getBinary;
+    CheckEquals(0, bin.Len, 'blank binary data expected');
+
+    Check(it.next, 'Iterator should not be at end');
+    Check(it.Kind = bsonARRAY, 'expecting binary bson');
+
     Check(not it.next, 'Iterator should be at end');
+
+    Obj2 := TTestObject.Create;
+    try
+      obj2.The_23_EmptySet := [eFirst];
+      FDeserializer.Source := NewBsonIterator(b);
+      FDeserializer.Target := Obj2;
+      FDeserializer.Deserialize;
+
+      CheckEquals(10, obj2.The_00_Int, 'Value of The_00_Int doesn''t match');
+      CheckEquals(11, obj2.The_01_Int64, 'Value of The_01_Int64 doesn''t match');
+      CheckEquals(integer(eSecond), integer(obj2.The_03_Enumeration), 'Value of The_03_Enumeration doesn''t match');
+      CheckEquals(1.5, obj2.The_04_Float, 'Value of The_04_Float doesn''t match');
+      {$IFDEF DELPHIXE}
+      CheckEqualsString('дом', obj2.The_05_String, 'The_05_String should be equals to "дом"');
+      {$ELSE}
+      CheckEqualsString('home', obj2.The_05_String, 'The_05_String should be equals to "home"');
+      {$ENDIF}
+      CheckEqualsString('Hello', obj2.The_06_ShortString, 'The_06_ShortString should be equals to "Hello"');
+      Check(obj2.The_07_Set = [eFirst, eSecond], 'obj2.The_07_Set = [eFirst, eSecond]');
+
+      CheckEquals(12, Obj2.The_08_SubObject.TheInt, 'Obj.The_08_SubObject.TheInt should be 12');
+
+      CheckEqualsString('Hello World', Obj2.The_11_AnsiString, 'Obj2.The_11_AnsiString doesn''t match value');
+
+      {$IFDEF DELPHIXE}
+      CheckEqualsString('дом', Obj2.The_13_StringList[0]);
+      CheckEqualsString('ом', Obj.The_13_StringList[1]);
+      {$ELSE}
+      CheckEqualsString('home', Obj2.The_13_StringList[0]);
+      CheckEqualsString('ome', Obj.The_13_StringList[1]);
+      {$ENDIF}
+
+      CheckEqualsWideString('д', Obj2.The_10_WChar, 'Obj2.The_10_WChar doesn''t match');
+
+      CheckEquals(14, Obj2.The_14_VariantAsInteger, 'Obj2.The_14_VariantAsInteger doesn''t match value');
+
+      {$IFDEF DELPHIXE}
+      CheckEqualsString('дом дом дом', Obj2.The_15_VariantAsString, 'Obj2.The_15_VariantAsString doesn''t match expected value');
+      {$ELSE}
+      CheckEqualsWideString('alo', UTF8Decode(Obj2.The_15_VariantAsString), 'Iterator doesn''t match');
+      {$ENDIF}
+
+      CheckEquals(0, VarArrayLowBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray low bound equals 0');
+      CheckEquals(1, VarArrayHighBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray high bound equals 0');
+      CheckEquals(16, Obj2.The_16_VariantAsArray[0], 'Value of The_16_VariantAsArray[0] doesn''t match');
+      CheckEquals(22, Obj2.The_16_VariantAsArray[1], 'Value of The_16_VariantAsArray[1] doesn''t match');
+
+      Check(Obj2.The_19_Boolean, 'Obj2.The_19_Boolean should be true');
+
+      CheckEquals(obj.The_20_DateTime, obj2.The_20_DateTime, 0.1, 'obj.The_20_DateTime = obj2.The_20_DateTime');
+
+      Check(obj2.The_23_EmptySet = [], 'The_23_EmptySet should be empty');
+
+      CheckEquals(length(SomeData), obj2.The_21_MemStream.Size, 'data size doesn''t match');
+      Check(CompareMem(SomeData, obj2.The_21_MemStream.Memory, obj2.The_21_MemStream.Size), 'memory doesn''t match');
+    finally
+      Obj2.Free;
+    end;
   finally
     Obj.Free;
   end;
