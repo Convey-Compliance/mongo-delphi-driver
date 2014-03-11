@@ -416,6 +416,8 @@ function NewBsonIterator(ABson: IBson): IBsonIterator; overload;
   TBsonBuffer and finish() to create BSON documents.
   If Bson don't own Handle it should be destroyed manually with TBson }
 function NewBson(AHandle: Pointer; owns: boolean = true): IBson;
+function NewBson_FromData(AData: Pointer): IBson;
+
 function NewBsonCopy(AHandle: Pointer): IBson;
 
 {$IFDEF DELPHIXE2}
@@ -664,6 +666,7 @@ type
     procedure display;
     function valueAsInt64(const Name: UTF8String): Int64;
     constructor Create(h: Pointer; owns: boolean = true);
+    constructor CreateFromData(AData: Pointer);
     destructor Destroy; override;
     property Handle: Pointer read getHandle;
   end;
@@ -1622,6 +1625,17 @@ begin
   end;
 end;
 
+constructor TBson.CreateFromData(AData: Pointer);
+begin
+  inherited Create;
+  {$IFDEF OnDemandMongoCLoad}
+  InitMongoDBLibrary;
+  {$ENDIF}
+  FHandle := bson_alloc;
+  bson_init_finished_data(FHandle, AData, false);
+  FOwnsHandle := True;
+end;
+
 procedure TBson.checkHandle;
 begin
   if FHandle = nil then
@@ -1958,6 +1972,11 @@ end;
 function NewBson(AHandle: Pointer; owns: boolean): IBson;
 begin
   Result := TBson.Create(AHandle, owns);
+end;
+
+function NewBson_FromData(AData: Pointer): IBson;
+begin
+  Result := TBson.CreateFromData(AData);
 end;
 
 var
