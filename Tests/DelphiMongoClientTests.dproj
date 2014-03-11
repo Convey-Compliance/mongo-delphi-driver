@@ -49,10 +49,10 @@
     <DCC_UNIT_EXPERIMENTAL>False</DCC_UNIT_EXPERIMENTAL>
     <DCC_TYPEINFO_IMPLICITLY_ADDED>False</DCC_TYPEINFO_IMPLICITLY_ADDED>
     <DCC_ExeOutput>..\..\..\bin\Win32\Debug</DCC_ExeOutput>
-    <DCC_UnitSearchPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_UnitSearchPath>
-    <DCC_ResourcePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_ResourcePath>
-    <DCC_ObjPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_ObjPath>
-    <DCC_IncludePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_IncludePath>
+    <DCC_UnitSearchPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_UnitSearchPath>
+    <DCC_ResourcePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ResourcePath>
+    <DCC_ObjPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ObjPath>
+    <DCC_IncludePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_IncludePath>
   </PropertyGroup>
   <ProjectExtensions>
     <Borland.Personality>Delphi.Personality</Borland.Personality>
@@ -67,28 +67,24 @@
     <DelphiCompile Include="DelphiMongoClientTests.dpr">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="..\..GridFS.pas" />
-    <DCCReference Include="..\..\GridFS.pas" />
-    <DCCReference Include="..\..\MongoBson.pas" />
-    <DCCReference Include="..\..\MongoDB.pas" />
-    <DCCReference Include="..\.GridFS.pas" />
     <DCCReference Include="..\APPEXEC.PAS" />
     <DCCReference Include="..\CnvGenUtils.pas" />
     <DCCReference Include="..\GridFS.pas" />
     <DCCReference Include="..\MongoAPI.pas" />
     <DCCReference Include="..\MongoBson.pas" />
+    <DCCReference Include="..\MongoBsonSerializableClasses.pas" />
+    <DCCReference Include="..\MongoBsonSerializer.pas" />
     <DCCReference Include="..\MongoDB.pas" />
     <DCCReference Include="..\MongoPool.pas" />
     <DCCReference Include="..\MongoStream.pas" />
-    <DCCReference Include="..\uAllocators.pas">
-      <Form>$R *.RES</Form>
-    </DCCReference>
+    <DCCReference Include="..\uAllocators.pas" />
     <DCCReference Include="..\Ufilemanagement.pas" />
     <DCCReference Include="..\uPrimitiveAllocator.pas" />
     <DCCReference Include="..\uStack.pas" />
     <DCCReference Include="..\uWinProcHelper.pas" />
     <DCCReference Include="TestGridFS.pas" />
     <DCCReference Include="TestMongoBson.pas" />
+    <DCCReference Include="TestMongoBsonSerializer.pas" />
     <DCCReference Include="TestMongoDB.pas" />
     <DCCReference Include="TestMongoPool.pas" />
     <DCCReference Include="TestMongoStream.pas" />
@@ -99,7 +95,7 @@
 </Project>
 <!-- EurekaLog First Line
 [Exception Log]
-EurekaLog Version=6002
+EurekaLog Version=6104
 Activate=0
 Activate Handle=1
 Save Log File=1
@@ -579,4 +575,5 @@ mtException_AntiFreeze0="The application seems to be frozen."
 Count mtInvalidEmailMsg=1
 mtInvalidEmailMsg0="Invalid email."
 TextsCollection=English
+cfoUseEL7=0
 EurekaLog Last Line -->
