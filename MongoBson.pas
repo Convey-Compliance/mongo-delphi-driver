@@ -415,8 +415,12 @@ function NewBsonIterator(ABson: IBson): IBsonIterator; overload;
   the document.  User code should not instantiate TBson directly.  Use
   TBsonBuffer and finish() to create BSON documents.
   If Bson don't own Handle it should be destroyed manually with TBson }
-function NewBson(AHandle: Pointer; owns: boolean = true): IBson;
+function NewBson(AHandle: Pointer; owns: boolean = true): IBson; overload;
 function NewBson_FromData(AData: Pointer): IBson;
+{$IFDEF USE_LIBBSON}
+function NewBson(const json: UTF8String): IBson; overload;
+function NewBson_FromLibBsonBson(b : Pointer): IBson;
+{$ENDIF}
 
 function NewBsonCopy(AHandle: Pointer): IBson;
 
@@ -438,10 +442,16 @@ function Null_Element : TObject;
 implementation
 
 uses
-  SysUtils{$IFNDEF VER130}, Variants{$ENDIF}, Windows, MongoDB, uStack;
+  SysUtils{$IFNDEF VER130}, Variants{$ENDIF}, Windows, MongoDB,
+  {$IFDEF USE_LIBBSON}
+  LibBsonApi,
+  {$ENDIF} uStack;
 
 // START resource string wizard section
 resourcestring
+  {$IFDEF USE_LIBBSON}
+  SFailedCreatingBSONFromJSON = 'Failed creating BSON from JSON. Message: [%s], Domain: (%d), ErrorCode: (%d)';
+  {$ENDIF}
   SBSONArrayDefinitionFinishedTooEarly = 'BSON array definition finished too early';
   SDatatypeNotSupportedCallingMkVarRecArrayVarArray = 'Datatype not supported calling MkVarRecArrayFromVarArray (D%d)';
   SNilInterfacePointerNotSupported = 'Nil interface pointer not supported (D%d)';
@@ -655,6 +665,9 @@ type
   private
     FHandle: Pointer;
     FOwnsHandle: boolean;
+    {$IFDEF USE_LIBBSON}
+    FLibBsonBson : Pointer;
+    {$ENDIF}
     procedure checkHandle;
   protected
     function getHandle: Pointer;
@@ -667,6 +680,9 @@ type
     function valueAsInt64(const Name: UTF8String): Int64;
     constructor Create(h: Pointer; owns: boolean = true);
     constructor CreateFromData(AData: Pointer);
+    {$IFDEF USE_LIBBSON}
+    constructor CreateFromLibBsonBson(h : Pointer);
+    {$ENDIF}
     destructor Destroy; override;
     property Handle: Pointer read getHandle;
   end;
@@ -1513,6 +1529,13 @@ begin
       bson_dealloc_and_destroy(FHandle);
       FHandle := nil;
     end;
+  {$IFDEF USE_LIBBSON}
+  if FLibBsonBson <> nil then
+    begin
+      libbson_bson_destroy(FLibBsonBson);
+      FLibBsonBson := nil;
+    end;
+  {$ENDIF}
   inherited Destroy();
 end;
 
@@ -1635,6 +1658,20 @@ begin
   bson_init_finished_data(FHandle, AData, false);
   FOwnsHandle := True;
 end;
+
+{$IFDEF USE_LIBBSON}
+constructor TBson.CreateFromLibBsonBson(h : Pointer);
+begin
+  inherited Create;
+  {$IFDEF OnDemandMongoCLoad}
+  InitMongoDBLibrary;
+  {$ENDIF}
+  FHandle := bson_alloc;
+  bson_init_finished_data(FHandle, libbson_bson_get_data(h), false);
+  FLibBsonBson := h;
+  FOwnsHandle := True;
+end;
+{$ENDIF}
 
 procedure TBson.checkHandle;
 begin
@@ -1978,6 +2015,24 @@ function NewBson_FromData(AData: Pointer): IBson;
 begin
   Result := TBson.CreateFromData(AData);
 end;
+
+{$IFDEF USE_LIBBSON}
+function NewBson(const json: UTF8String): IBson;
+var
+  lb : Pointer;
+  err : bson_error_t;
+begin
+  lb := libbson_bson_new_from_json(PAnsiChar(json), length(json), @err);
+  if lb = nil then
+    raise ELibBson.CreateFmt(SFailedCreatingBSONFromJSON, [UTF8String(err.message), err.domain, err.code]);
+  Result := TBson.CreateFromLibBsonBson(lb);
+end;
+
+function NewBson_FromLibBsonBson(b : Pointer): IBson;
+begin
+  Result := TBson.CreateFromLibBsonBson(b);
+end;
+{$ENDIF}
 
 var
   { An empty BSON document }

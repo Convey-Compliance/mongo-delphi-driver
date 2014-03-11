@@ -15,9 +15,6 @@ program DelphiMongoClientTests_XE4;
 {$ENDIF}
 
 uses
-  {$IFDEF FASTMM}
-  FastMM4,
-  {$ENDIF}
   SysUtils,
   Forms,
   XMLTestRunner2,
@@ -43,7 +40,8 @@ uses
   uPrimitiveAllocator in '..\uPrimitiveAllocator.pas',
   TestuPrimitiveAllocator in 'TestuPrimitiveAllocator.pas',
   TestuAllocators in 'TestuAllocators.pas',
-  uAllocators;
+  uAllocators,
+  LibBsonAPI in '..\LibBsonAPI.pas';
 
 {$R *.RES}
 
@@ -59,7 +57,7 @@ begin
   else
   begin
     Application.CreateForm(TGUITestRunner, GUITestRunner_);
-  GUITestRunner_.Suite := RegisteredTests;
+    GUITestRunner_.Suite := RegisteredTests;
     Application.Run;
   end;
 end.

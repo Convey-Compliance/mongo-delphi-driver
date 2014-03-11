@@ -168,6 +168,9 @@ type
     procedure TearDown; override;
   published
     procedure TestComplexBson;
+    {$IFDEF USE_LIBBSON}
+    procedure TestCreateFromJson;
+    {$ENDIF}
     procedure Testfind;
     procedure TestgetHandle;
     procedure Testiterator;
@@ -181,8 +184,10 @@ type
 
   TestBsonAPI = class(TTestCase)
   published
+    {$IFDEF USE_LIBBSON}
     procedure TestLibBsonApis;
     procedure TestBsonFromJson;
+    {$ENDIF}
     procedure Test_bson_set_oid_inc;
     procedure Test_bson_set_oid_fuzz;
   end;
@@ -204,7 +209,11 @@ type
 implementation
 
 uses
-  Classes{$IFNDEF VER130}, Variants{$ENDIF}, MongoAPI, MongoDB, uPrimitiveAllocator;
+  Classes{$IFNDEF VER130}, Variants{$ENDIF}, MongoAPI, MongoDB,
+  {$IFDEF USE_LIBBSON}
+  LibBsonAPI,
+  {$ENDIF}
+  uPrimitiveAllocator;
 
 const
   DELTA_DATE = 0.00009999;
@@ -1637,6 +1646,29 @@ begin
   Check(not it.next, 'Call to it.next should be false');
 end;
 
+{$IFDEF USE_LIBBSON}
+procedure TestIBson.TestCreateFromJson;
+const
+  TestJson : PAnsiChar = '{ "str" : "the value" }';
+  BadJson : PAnsiChar = '{ str : "the value" }';
+var
+  b : IBson;
+  it : IBsonIterator;
+begin
+  b := NewBson(UTF8String(TestJson));
+  it := b.find('str');
+  Check(it <> nil, 'attribute str not found');
+  CheckEqualsString('the value', it.value, 'value doesn''t match');
+
+  try
+    b := NewBson(UTF8String(BadJson));
+    Fail('Call should have failed');
+  except
+    on E : ELibBson do Check(pos('Failed creating BSON from JSON', E.Message) = 1);
+  end;
+end;
+{$ENDIF}
+
 procedure TestIBson.Testfind;
 var
   ReturnValue: IBsonIterator;
@@ -1801,6 +1833,7 @@ begin
   CustomOIDFuzz := True;
 end;
 
+{$IFDEF USE_LIBBSON}
 procedure TestBsonAPI.TestLibBsonApis;
 const
   JSON : PAnsiChar = '{ "str": "hello"}';
@@ -1811,6 +1844,7 @@ begin
   Check(p <> nil, 'libbson_bson_new_from_json() should return a value <> nil');
   libbson_bson_destroy(p);
 end;
+{$ENDIF}
 
 procedure TestBsonAPI.TestBsonFromJson;
 const

@@ -8,12 +8,6 @@ uses
   Windows, SysUtils;
 
 const
-  LibBson_DllVersion = '0-6-0'; (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
-
-  CPUType = {$IFDEF WIN64} '64' {$ELSE} '32' {$ENDIF};
-  ConfigType = {$IFDEF DEBUG} 'd' {$ELSE} 'r' {$ENDIF};
-  LibBson_DLL = 'libbson_' + ConfigType + CPUType + '_v' + LibBson_DllVersion + '.dll';
-
   Default_MongoCDLL = 'mongoc.dll';
 
 type
@@ -597,12 +591,7 @@ var
   function create_ZLib_AES_filter_context(flags : integer) : Pointer; cdecl; external Default_MongoCDLL;
   procedure destroy_ZLib_AES_filter_context(context : Pointer; flags : integer); cdecl; external Default_MongoCDLL;
   function ZLib_AES_filter_context_set_encryption_key( context : Pointer; Passphrase : PAnsiChar; bits : integer ) : integer; cdecl; external Default_MongoCDLL;
-
 {$EndIf}
-
-function libbson_bson_new_from_json (data : pointer; len : NativeUInt; error : Pointer) : pointer; cdecl; external LibBson_DLL name 'bson_new_from_json';
-procedure libbson_bson_destroy (bson : Pointer); cdecl; external LibBson_DLL name 'bson_destroy';
-function libbson_bson_get_data (bson : Pointer) : Pointer; cdecl; external LibBson_DLL name 'bson_get_data';
 
 function mongo_write_concern_create: Pointer;
 procedure bson_dealloc_and_destroy(bson : Pointer);
