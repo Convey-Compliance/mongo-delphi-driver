@@ -19,6 +19,7 @@ type
     procedure TestCreateDeserializer(FSerializer: TBaseBsonSerializer; const Value:
         string);
     procedure TestCreateSerializer;
+    procedure TestSerializeObjectAsStringList_Flat;
     procedure TestSerializePrimitiveTypes;
   end;
 
@@ -94,6 +95,17 @@ type
     property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
     property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
   end;
+
+  TTestObjectWithObjectAsStringList = class
+  private
+    FObjectAsStringList: TObjectAsStringList;
+    procedure SetObjectAsStringList(const Value: TObjectAsStringList);
+  public
+    constructor Create;
+    destructor Destroy; override;
+  published
+    property ObjectAsStringList: TObjectAsStringList read FObjectAsStringList write SetObjectAsStringList;
+  end;
   {$M-}
 
 constructor TTestObject.Create;
@@ -135,6 +147,56 @@ end;
 procedure TestTMongoBsonSerializer.TestCreateSerializer;
 begin
   Check(FSerializer <> nil, 'FSerializer should be <> nil');
+end;
+
+procedure TestTMongoBsonSerializer.TestSerializeObjectAsStringList_Flat;
+var
+  TestObject1, TestObject2 : TTestObjectWithObjectAsStringList;
+  b : IBson;
+  it, SubIt : IBsonIterator;
+begin
+  FSerializer.Target := NewBsonBuffer();
+  TestObject1 := TTestObjectWithObjectAsStringList.Create();
+  try
+    FSerializer.Source := TestObject1;
+    TestObject1.ObjectAsStringList.Add('Name1=Value1');
+    TestObject1.ObjectAsStringList.Add('Name2=Value2');
+    TestObject1.ObjectAsStringList.Add('Name3=Value3');
+    TestObject1.ObjectAsStringList.Add('Name4=Value4');
+    TestObject1.ObjectAsStringList.Add('Name5=Value5');
+
+    FSerializer.Serialize('');
+
+    b := FSerializer.Target.finish;
+    it := NewBsonIterator(b);
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('ObjectAsStringList', it.key);
+    Check(it.Kind = bsonObject, 'Type of iterator value should be bsonObject');
+    SubIt := it.subiterator;
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals('Name1', SubIt.key, 'Iterator should be equals to Value1');
+    CheckEquals('Value1', SubIt.value, 'Iterator should be equals to Value1');
+    SubIt.next;
+    SubIt.next;
+    SubIt.next;
+    SubIt.next;
+    CheckEquals('Name5', SubIt.key, 'Iterator should be equals to Value1');
+    CheckEquals('Value5', SubIt.value, 'Iterator should be equals to Value1');
+
+    TestObject2 := TTestObjectWithObjectAsStringList.Create;
+    try
+      FDeserializer.Source := NewBsonIterator(b);
+      FDeserializer.Target := TestObject2;
+      FDeserializer.Deserialize;
+
+      CheckEquals('Name1=Value1', TestObject2.ObjectAsStringList[0]);
+      CheckEquals('Name5=Value5', TestObject2.ObjectAsStringList[4]);
+    finally
+      FreeAndNil(TestObject2);
+    end;
+  finally
+    FreeAndNil(TestObject1);
+  end;
 end;
 
 procedure TestTMongoBsonSerializer.TestSerializePrimitiveTypes;
@@ -386,6 +448,23 @@ begin
   finally
     Obj.Free;
   end;
+end;
+
+constructor TTestObjectWithObjectAsStringList.Create;
+begin
+  inherited Create;
+  FObjectAsStringList := TObjectAsStringList.Create;
+end;
+
+destructor TTestObjectWithObjectAsStringList.Destroy;
+begin
+  FreeAndNil(FObjectAsStringList);
+  inherited Destroy;
+end;
+
+procedure TTestObjectWithObjectAsStringList.SetObjectAsStringList(const Value: TObjectAsStringList);
+begin
+  FObjectAsStringList.Assign(Value);
 end;
 
 initialization

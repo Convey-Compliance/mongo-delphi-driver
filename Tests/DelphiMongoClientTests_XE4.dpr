@@ -17,7 +17,7 @@ program DelphiMongoClientTests_XE4;
 uses
   {$IFDEF FASTMM}
   FastMM4,
-  {$ENDIF}
+  {$ENDIF }
   SysUtils,
   Forms,
   XMLTestRunner2,
@@ -43,7 +43,9 @@ uses
   uPrimitiveAllocator in '..\uPrimitiveAllocator.pas',
   TestuPrimitiveAllocator in 'TestuPrimitiveAllocator.pas',
   TestuAllocators in 'TestuAllocators.pas',
-  uAllocators;
+  uAllocators,
+  TestMongoBsonSerializer in 'TestMongoBsonSerializer.pas',
+  MongoBsonSerializer in '..\MongoBsonSerializer.pas';
 
 {$R *.RES}
 
@@ -57,10 +59,10 @@ begin
   if IsConsole then
     XMLTestRunner2.RunRegisteredTests(ExpandFileName(ParamStr(2)))
   else
-  begin
-    Application.CreateForm(TGUITestRunner, GUITestRunner_);
-  GUITestRunner_.Suite := RegisteredTests;
-    Application.Run;
-  end;
+    begin
+      Application.CreateForm(TGUITestRunner, GUITestRunner_);
+      GUITestRunner_.Suite := RegisteredTests;
+      Application.Run;
+    end;
 end.
 

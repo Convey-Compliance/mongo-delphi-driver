@@ -5,10 +5,12 @@ interface
 {$i DelphiVersion_defines.inc}
 
 uses
-  MongoBson, SysUtils,
+  Classes, MongoBson, SysUtils,
   {$IFDEF DELPHIXE} System.Generics.Collections, {$ELSE} HashTrie, {$ENDIF} TypInfo;
 
 type
+  TObjectAsStringList = class(TStringList);
+
   EBsonSerializer = class(Exception);
   TBaseBsonSerializerClass = class of TBaseBsonSerializer;
   TBaseBsonSerializer = class
@@ -75,7 +77,7 @@ function CreateDeserializer(AClass : TClass): TBaseBsonDeserializer;
 implementation
 
 uses
-  Variants, Classes, MongoApi;
+  Variants, MongoApi;
 
 resourcestring
   SObjectHasNotPublishedProperties = 'Object has not published properties. review your logic';
@@ -127,6 +129,16 @@ type
   end;
 
   TStreamBsonDeserializer = class(TBaseBsonDeserializer)
+  public
+    procedure Deserialize; override;
+  end;
+
+  TObjectAsStringListBsonSerializer = class(TBaseBsonSerializer)
+  public
+    procedure Serialize(const AName: String); override;
+  end;
+
+  TObjectAsStringListBsonDeserializer = class(TBaseBsonDeserializer)
   public
     procedure Deserialize; override;
   end;
@@ -600,22 +612,53 @@ begin
     Stream.Write(binData.Data^, binData.Len);
 end;
 
+{ TObjectAsStringListBsonSerializer }
+
+procedure TObjectAsStringListBsonSerializer.Serialize(const AName: String);
+var
+  i : integer;
+  AList : TStrings;
+begin
+  Target.startObject(AName);
+  AList := Source as TStringList;
+  for i := 0 to AList.Count - 1 do
+   begin
+     Target.append(AList.Names[i], AList.ValueFromIndex[i]);
+   end;
+  Target.finishObject;
+end;
+
+{ TObjectAsStringListBsonDeserializer }
+
+procedure TObjectAsStringListBsonDeserializer.Deserialize;
+var
+  AStrings : TStrings;
+begin
+  AStrings := Target as TStrings;
+  while Source.next do
+    AStrings.Add(Source.key + '=' + Source.value);
+end;
+
 initialization
   Serializers := TClassPairList.Create;
   Deserializers := TClassPairList.Create;
   RegisterClassSerializer(TObject, TDefaultObjectBsonSerializer);
   RegisterClassSerializer(TStrings, TStringsBsonSerializer);
   RegisterClassSerializer(TStream, TStreamBsonSerializer);
+  RegisterClassSerializer(TObjectAsStringList, TObjectAsStringListBsonSerializer);
   RegisterClassDeserializer(TObject, TPrimitivesBsonDeserializer);
   RegisterClassDeserializer(TStrings, TStringsBsonDeserializer);
   RegisterClassDeserializer(TStream, TStreamBsonDeserializer);
+  RegisterClassDeserializer(TObjectAsStringList, TObjectAsStringListBsonDeserializer);
 finalization
   UnRegisterClassDeserializer(TStream, TStreamBsonDeserializer);
   UnRegisterClassDeserializer(TObject, TPrimitivesBsonDeserializer);
   UnRegisterClassDeserializer(TStrings, TStringsBsonDeserializer);
+  UnRegisterClassDeserializer(TObjectAsStringList, TObjectAsStringListBsonDeserializer);
   UnRegisterClassSerializer(TStream, TStreamBsonSerializer);
   UnRegisterClassSerializer(TStrings, TStringsBsonSerializer);
   UnRegisterClassSerializer(TObject, TDefaultObjectBsonSerializer);
+  UnRegisterClassSerializer(TObjectAsStringList, TObjectAsStringListBsonSerializer);
   Deserializers.Free;
   Serializers.Free;
 end.
