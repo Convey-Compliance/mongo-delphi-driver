@@ -181,6 +181,8 @@ type
 
   TestBsonAPI = class(TTestCase)
   published
+    procedure TestLibBsonApis;
+    procedure TestBsonFromJson;
     procedure Test_bson_set_oid_inc;
     procedure Test_bson_set_oid_fuzz;
   end;
@@ -1797,6 +1799,35 @@ function CustomOIDFuzzFunction: Integer; cdecl;
 begin
   Result := 0;
   CustomOIDFuzz := True;
+end;
+
+procedure TestBsonAPI.TestLibBsonApis;
+const
+  JSON : PAnsiChar = '{ "str": "hello"}';
+var
+  p : Pointer;
+begin
+  p := libbson_bson_new_from_json(JSON, length(JSON), nil);
+  Check(p <> nil, 'libbson_bson_new_from_json() should return a value <> nil');
+  libbson_bson_destroy(p);
+end;
+
+procedure TestBsonAPI.TestBsonFromJson;
+const
+  JSON : PAnsiChar = '{ "str": "hello"}';
+var
+  p : Pointer;
+  b : IBson;
+  it : IBsonIterator;
+begin
+  p := libbson_bson_new_from_json(JSON, length(JSON), nil);
+  Check(p <> nil, 'libbson_bson_new_from_json() should return a value <> nil');
+  b := NewBson_FromData(libbson_bson_get_data(p));
+  it := b.find('str');
+  Check(it <> nil, 'iterator should be <> nil');
+  CheckEqualsString('hello', it.value, 'value of iterator should be "hello"');
+  b := nil;
+  libbson_bson_destroy(p);
 end;
 
 procedure TestBsonAPI.Test_bson_set_oid_inc;
