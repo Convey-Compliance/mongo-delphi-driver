@@ -44,6 +44,7 @@ uses
   TestuPrimitiveAllocator in 'TestuPrimitiveAllocator.pas',
   TestuAllocators in 'TestuAllocators.pas',
   uAllocators,
+  LibBsonAPI in '..\LibBsonAPI.pas',
   TestMongoBsonSerializer in 'TestMongoBsonSerializer.pas',
   MongoBsonSerializer in '..\MongoBsonSerializer.pas';
 

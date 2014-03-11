@@ -132,6 +132,7 @@ type
   // MongoBSON declarations
   Tbson_free = procedure (b : pointer); cdecl;
   Tbson_init = function (b: Pointer) : integer; cdecl;
+  Tbson_init_finished_data = function (b : Pointer; data : PAnsiChar; ownsData : LongBool) : integer; cdecl;
   Tbson_init_empty = function (b : Pointer) : integer; cdecl;
   Tbson_destroy = procedure (b: Pointer); cdecl;
   Tbson_finish = function (b: Pointer): Integer; cdecl;
@@ -307,6 +308,7 @@ var
   // MongoBson declarations
   bson_free : Tbson_free;
   bson_init : Tbson_init;
+  bson_init_finished_data : Tbson_init_finished_data;
   bson_init_empty : Tbson_init_empty;
   bson_destroy : Tbson_destroy;
   bson_finish : Tbson_finish;
@@ -488,6 +490,7 @@ var
   // MongoBson declarations
   procedure bson_free(b : pointer); cdecl; external Default_MongoCDLL;
   function bson_init(b: Pointer) : integer; cdecl; external Default_MongoCDLL;
+  function bson_init_finished_data(b : Pointer; data : PAnsiChar; ownsData : LongBool) : integer; cdecl; external Default_MongoCDLL;
   function bson_init_empty(b : Pointer) : integer; cdecl; external Default_MongoCDLL;
   procedure bson_destroy(b: Pointer); cdecl; external Default_MongoCDLL;
   function bson_finish(b: Pointer): Integer; cdecl; external Default_MongoCDLL;
@@ -590,7 +593,6 @@ var
   function create_ZLib_AES_filter_context(flags : integer) : Pointer; cdecl; external Default_MongoCDLL;
   procedure destroy_ZLib_AES_filter_context(context : Pointer; flags : integer); cdecl; external Default_MongoCDLL;
   function ZLib_AES_filter_context_set_encryption_key( context : Pointer; Passphrase : PAnsiChar; bits : integer ) : integer; cdecl; external Default_MongoCDLL;
-
 {$EndIf}
 
 function mongo_write_concern_create: Pointer;
@@ -725,6 +727,7 @@ begin
   bson_alloc := GetProcAddress(HMongoDBDll, 'bson_alloc');
   bson_init := GetProcAddress(HMongoDBDll, 'bson_init');
   bson_init_empty := GetProcAddress(HMongoDBDll, 'bson_init_empty');
+  bson_init_finished_data := GetProcAddress(HMongoDBDll, 'bson_init_finished_data');
   bson_destroy := GetProcAddress(HMongoDBDll, 'bson_destroy');
   bson_dealloc := GetProcAddress(HMongoDBDll, 'bson_dealloc');
   bson_copy := GetProcAddress(HMongoDBDll, 'bson_copy');
