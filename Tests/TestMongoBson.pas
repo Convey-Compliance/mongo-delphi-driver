@@ -1844,7 +1844,6 @@ begin
   Check(p <> nil, 'libbson_bson_new_from_json() should return a value <> nil');
   libbson_bson_destroy(p);
 end;
-{$ENDIF}
 
 procedure TestBsonAPI.TestBsonFromJson;
 const
@@ -1863,6 +1862,7 @@ begin
   b := nil;
   libbson_bson_destroy(p);
 end;
+{$ENDIF}
 
 procedure TestBsonAPI.Test_bson_set_oid_inc;
 begin
