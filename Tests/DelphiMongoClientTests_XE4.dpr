@@ -46,7 +46,8 @@ uses
   uAllocators,
   LibBsonAPI in '..\LibBsonAPI.pas',
   TestMongoBsonSerializer in 'TestMongoBsonSerializer.pas',
-  MongoBsonSerializer in '..\MongoBsonSerializer.pas';
+  MongoBsonSerializer in '..\MongoBsonSerializer.pas',
+  MongoBsonSerializableClasses in '..\MongoBsonSerializableClasses.pas';
 
 {$R *.RES}
 

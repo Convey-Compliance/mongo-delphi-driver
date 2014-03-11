@@ -5,7 +5,7 @@
 interface
 
 uses
-  TestFramework{$IFNDEF VER130}, Variants{$EndIf}, MongoBsonSerializer;
+  TestFramework{$IFNDEF VER130}, Variants{$EndIf}, MongoBsonSerializer, MongoBsonSerializableClasses;
 
 type
   TestTMongoBsonSerializer = class(TTestCase)

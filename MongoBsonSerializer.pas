@@ -6,11 +6,10 @@ interface
 
 uses
   Classes, MongoBson, SysUtils,
+  MongoBsonSerializableClasses,
   {$IFDEF DELPHIXE} System.Generics.Collections, {$ELSE} HashTrie, {$ENDIF} TypInfo;
 
 type
-  TObjectAsStringList = class(TStringList);
-
   EBsonSerializer = class(Exception);
   TBaseBsonSerializerClass = class of TBaseBsonSerializer;
   TBaseBsonSerializer = class
