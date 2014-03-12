@@ -444,24 +444,18 @@ var
 begin
   while Source.next do
     begin
-      case Source.Kind of
-        bsonINT : if PropInfos.TryGetValue(Source.key, p) then
-          if p^.PropType^.Kind = tkVariant then
-            SetVariantProp(Target, p, Source.value)
-          else SetOrdProp(Target, p, Source.value);
-        bsonBOOL : if PropInfos.TryGetValue(Source.key, p) then
-          if p^.PropType^.Kind = tkVariant then
-            SetVariantProp(Target, p, Source.value)
-          else if Boolean(Source.value) then
+      if not PropInfos.TryGetValue(Source.key, p) then
+        continue;
+      if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [bsonARRAY])  then
+        SetVariantProp(Target, p, Source.value)
+      else case Source.Kind of
+        bsonINT : SetOrdProp(Target, p, Source.value);
+        bsonBOOL : if Boolean(Source.value) then
             SetEnumProp(Target, p, 'True')
           else SetEnumProp(Target, p, 'False');
-        bsonLONG : if PropInfos.TryGetValue(Source.key, p) then
-          if p^.PropType^.Kind = tkVariant then
-            SetVariantProp(Target, p, Source.AsInt64)
-          else SetInt64Prop(Target, p, Source.AsInt64);
+        bsonLONG : SetInt64Prop(Target, p, Source.AsInt64);
         bsonSTRING, bsonSYMBOL : if PropInfos.TryGetValue(Source.key, p) then
           case p^.PropType^.Kind of
-            tkVariant : SetVariantProp(Target, p, Source.value);
             tkEnumeration : SetEnumProp(Target, p, Source.value);
             tkWString :
             {$IFDEF DELPHIXE}
@@ -483,17 +477,13 @@ begin
               SetOrdProp(Target, p, NativeInt(UTF8Decode(Source.value)[1]));
             {$ENDIF}
           end;
-        bsonDOUBLE, bsonDATE : if PropInfos.TryGetValue(Source.key, p) then
-          if p^.PropType^.Kind = tkVariant then
-            SetVariantProp(Target, p, Source.value)
-          else SetFloatProp (Target, p, Source.Value);
-        bsonARRAY : if PropInfos.TryGetValue(Source.key, p) then
-          case p^.PropType^.Kind of
+        bsonDOUBLE, bsonDATE : SetFloatProp (Target, p, Source.Value);
+        bsonARRAY : case p^.PropType^.Kind of
             tkSet : DeserializeSet(p);
             tkVariant : DeserializeVariantArray(p);
             tkClass : DeserializeObject(p);
           end;
-        bsonOBJECT, bsonBINDATA : if PropInfos.TryGetValue(Source.key, p) and (p^.PropType^.Kind = tkClass) then
+        bsonOBJECT, bsonBINDATA : if p^.PropType^.Kind = tkClass then
           DeserializeObject(p);
       end;
     end;
