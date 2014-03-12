@@ -450,7 +450,9 @@ begin
             SetVariantProp(Target, p, Source.value)
           else SetOrdProp(Target, p, Source.value);
         bsonBOOL : if PropInfos.TryGetValue(Source.key, p) then
-          if Boolean(Source.value) then
+          if p^.PropType^.Kind = tkVariant then
+            SetVariantProp(Target, p, Source.value)
+          else if Boolean(Source.value) then
             SetEnumProp(Target, p, 'True')
           else SetEnumProp(Target, p, 'False');
         bsonLONG : if PropInfos.TryGetValue(Source.key, p) then
