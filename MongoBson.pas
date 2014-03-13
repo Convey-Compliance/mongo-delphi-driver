@@ -395,6 +395,8 @@ function NewBsonOID({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}): IBso
 function NewBsonOID(const s : UTF8String): IBsonOID; overload;
 { Create an Object ID from a TBsonIterator pointing to an oid field }
 function NewBsonOID(i : IBsonIterator): IBsonOID; overload;
+{ Create a Bson OID as a copy }
+function NewBsonOID(oid : IBsonOID): IBsonOID; overload;
 
 { Create a TBsonRegex from reqular expression and options strings }
 function NewBsonRegex(const apattern, aoptions: UTF8String): IBsonRegex; overload;
@@ -502,6 +504,7 @@ type
     constructor Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}); overload;
     constructor Create(const s: UTF8String); overload;
     constructor Create(i: IBsonIterator); overload;
+    constructor Create(oid: IBsonOID); overload;
     function asString: UTF8String;
     function getValue: PBsonOIDValue;
     procedure setValue(const AValue: TBsonOIDValue);
@@ -752,7 +755,16 @@ begin
   InitMongoDBLibrary;
   {$ENDIF}
   p := bson_iterator_oid(i.getHandle);
-  Move(p^, Value, 12);
+  Move(p^, Value, sizeof(TBsonOIDValue));
+end;
+
+constructor TBsonOID.Create(oid: IBsonOID);
+begin
+  inherited Create;
+  {$IFDEF OnDemandMongoCLoad}
+  InitMongoDBLibrary;
+  {$ENDIF}
+  Move(oid.getValue^, Value, sizeof(TBsonOIDValue));
 end;
 
 function TBsonOID.asString: UTF8String;
@@ -1963,6 +1975,11 @@ end;
 function NewBsonCodeWScope(i: IBsonIterator): IBsonCodeWScope; overload;
 begin
   Result := TBsonCodeWScope.Create(i);
+end;
+
+function NewBsonOID(oid : IBsonOID): IBsonOID; overload;
+begin
+  Result := TBsonOID.Create(oid);
 end;
 
 function NewBsonOID({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}): IBsonOID; overload;
