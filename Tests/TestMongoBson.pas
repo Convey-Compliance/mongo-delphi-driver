@@ -170,6 +170,7 @@ type
     procedure TestComplexBson;
     {$IFDEF USE_LIBBSON}
     procedure TestCreateFromJson;
+    procedure TestAsJson;
     {$ENDIF}
     procedure Testfind;
     procedure TestgetHandle;
@@ -1666,6 +1667,16 @@ begin
   except
     on E : ELibBson do Check(pos('Failed creating BSON from JSON', E.Message) = 1);
   end;
+end;
+
+procedure TestIBson.TestAsJson;
+var
+  b : IBson;
+  s : string;
+begin
+  b := BSON(['ID', 123, 'S', 'STR']);
+  s := b.asJson;
+  CheckEqualsString('{ "ID" : 123, "S" : "STR" }', s);
 end;
 {$ENDIF}
 

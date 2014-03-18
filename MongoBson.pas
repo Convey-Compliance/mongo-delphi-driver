@@ -329,6 +329,9 @@ type
       TBsonIterator to retrieve special values. }
     function value(const Name: UTF8String): Variant;
     function valueAsInt64(const Name: UTF8String): Int64;
+    {$IFDEF USE_LIBBSON}
+    function asJson : string;
+    {$ENDIF}
     { Pointer to externally managed data.  User code should not modify this.
       It is public only because the MongoDB and GridFS units must access it. }
     property Handle: Pointer read getHandle;
@@ -685,6 +688,7 @@ type
     constructor CreateFromData(AData: Pointer);
     {$IFDEF USE_LIBBSON}
     constructor CreateFromLibBsonBson(h : Pointer);
+    function asJson: string;
     {$ENDIF}
     destructor Destroy; override;
     property Handle: Pointer read getHandle;
@@ -1680,6 +1684,24 @@ begin
   bson_init_finished_data(FHandle, libbson_bson_get_data(h), false);
   FLibBsonBson := h;
   FOwnsHandle := True;
+end;
+
+function TBson.asJson: string;
+var
+  JsonPChar : PAnsiChar;
+  LibBsonBson : Pointer;
+begin
+  LibBsonBson := libbson_bson_new_from_data(bson_data(FHandle), bson_size(FHandle));
+  try
+    JsonPChar := libbson_bson_as_json(LibBsonBson, nil);
+    try
+      Result := UTF8String(JsonPChar);
+    finally
+      libbson_bson_free(JsonPChar);
+    end;
+  finally
+    libbson_bson_destroy(LibBsonBson);
+  end;
 end;
 {$ENDIF}
 

@@ -136,6 +136,7 @@ type
   Tbson_init_empty = function (b : Pointer) : integer; cdecl;
   Tbson_destroy = procedure (b: Pointer); cdecl;
   Tbson_finish = function (b: Pointer): Integer; cdecl;
+  Tbson_data = function( b : Pointer ) : Pointer; cdecl;
   Tbson_print = procedure (b: Pointer); cdecl;
   Tbson_oid_gen = procedure (oid: Pointer); cdecl;
   Tbson_set_oid_inc = procedure (proc : pointer); cdecl;
@@ -313,6 +314,7 @@ var
   bson_destroy : Tbson_destroy;
   bson_finish : Tbson_finish;
   bson_print : Tbson_print;
+  bson_data : Tbson_data;
   bson_oid_gen : Tbson_oid_gen;
   bson_set_oid_inc : Tbson_set_oid_inc;
   bson_set_oid_fuzz : Tbson_set_oid_fuzz;
@@ -495,6 +497,7 @@ var
   procedure bson_destroy(b: Pointer); cdecl; external Default_MongoCDLL;
   function bson_finish(b: Pointer): Integer; cdecl; external Default_MongoCDLL;
   procedure bson_print(b: Pointer); cdecl; external Default_MongoCDLL;
+  function bson_data( b : Pointer ) : Pointer; cdecl; external Default_MongoCDLL;
   procedure bson_oid_gen(oid: Pointer); cdecl; external Default_MongoCDLL;
   procedure bson_set_oid_inc (proc : pointer); cdecl; external Default_MongoCDLL;
   procedure bson_set_oid_fuzz (proc : pointer); cdecl; external Default_MongoCDLL;
@@ -733,6 +736,7 @@ begin
   bson_copy := GetProcAddress(HMongoDBDll, 'bson_copy');
   bson_finish := GetProcAddress(HMongoDBDll, 'bson_finish');
   bson_print := GetProcAddress(HMongoDBDll, 'bson_print');
+  bson_data := GetProcAddress(HMongoDBDll, 'bson_data');
   bson_oid_gen := GetProcAddress(HMongoDBDll, 'bson_oid_gen');
   bson_set_oid_inc := GetProcAddress(HMongoDBDll, 'bson_set_oid_inc');
   bson_set_oid_fuzz := GetProcAddress(HMongoDBDll, 'bson_set_oid_fuzz');
