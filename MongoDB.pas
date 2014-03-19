@@ -88,7 +88,9 @@ type
     FLoginDatabaseName: UTF8String;
     FWriteConcern: IWriteConcern;
     procedure CheckHandle(const FnName: String);
+    function GetOpTimeout: Integer;
     class procedure InitCustomBsonOIDFns;
+    procedure SetOpTimeout(const Value: Integer);
   protected
       { Pointer to externally managed data describing the connection.
         User code should not access this.  It is public only for
@@ -358,6 +360,7 @@ type
         Returns nil if successful; otherwise, a IBson document that describes the error. }
     property AutoCheckLastError: Boolean read FAutoCheckLastError write FAutoCheckLastError;
     property Handle: Pointer read FHandle;
+    property OpTimeout: Integer read GetOpTimeout write SetOpTimeout;
   end;
 
     { TMongoReplset is a superclass of the TMongo connection class that implements
@@ -1274,6 +1277,11 @@ begin
   Result := FLoginDatabaseName;
 end;
 
+function TMongo.GetOpTimeout: Integer;
+begin
+  Result := mongo_get_op_timeout(Handle);
+end;
+
 function TMongo.getPrevErr(const db: UTF8String): IBson;
 var
   res: Pointer;
@@ -1374,6 +1382,11 @@ begin
     db := '';
     Collection := ns;
   end;
+end;
+
+procedure TMongo.SetOpTimeout(const Value: Integer);
+begin
+  mongo_set_op_timeout(Handle, Value);
 end;
 
 procedure TMongo.setWriteConcern(AWriteConcern: IWriteConcern);

@@ -104,6 +104,7 @@ type
     procedure TestgetLoginDatabaseName_Default;
     procedure TestgetLoginDatabaseName_Defined; virtual;
     procedure TestindexCreateUsingBsonKeyAndNameAndOptions;
+    procedure TestSetAndGetOpTimeout;
     procedure TestUseWriteConcern;
     procedure TestTryToUseUnfinishedWriteConcern;
   end;
@@ -1161,6 +1162,13 @@ begin
   options := indexUnique;
   ReturnValue := FMongo.indexCreate(ns, key, PAnsiChar('test_index_name'), Options);
   Check(ReturnValue = nil, 'Call to Mongo.indexCreate should return nil if successful');
+end;
+
+procedure TestTMongo.TestSetAndGetOpTimeout;
+begin
+  CheckEquals(0, FMongo.OpTimeout);
+  FMongo.OpTimeout := 10000;
+  CheckEquals(10000, FMongo.OpTimeout);
 end;
 
 procedure TestTMongo.TestUseWriteConcern;
