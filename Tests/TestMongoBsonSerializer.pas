@@ -8,6 +8,7 @@ uses
   TestFramework{$IFNDEF VER130}, Variants{$EndIf}, MongoBsonSerializer, MongoBsonSerializableClasses;
 
 type
+  {$M+}
   TestTMongoBsonSerializer = class(TTestCase)
   private
     FSerializer: TBaseBsonSerializer;
@@ -22,6 +23,7 @@ type
     procedure TestSerializeObjectAsStringList_Flat;
     procedure TestSerializePrimitiveTypes;
   end;
+  {$M-}
 
 implementation
 
