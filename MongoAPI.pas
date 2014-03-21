@@ -8,7 +8,12 @@ uses
   Windows, SysUtils;
 
 const
-  Default_MongoCDLL = 'mongoc.dll';
+  MongoC_DllVersion = '1-0-1'; (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
+
+  CPUType = {$IFDEF WIN64} '64' {$ELSE} '32' {$ENDIF};
+  ConfigType = {$IFDEF DEBUG} 'd' {$ELSE} 'r' {$ENDIF};
+
+  Default_MongoCDLL = 'mongoc_' + ConfigType + CPUType + '_v' + MongoC_DllVersion + '.dll';
 
 type
   {$IFNDEF DELPHI2007}
