@@ -18,10 +18,10 @@
     <DCC_DcuOutput>..\..\..\Intermediate\D2007\Win32\Release</DCC_DcuOutput>
     <DCC_ObjOutput>..\..\..\Intermediate\D2007\Win32\Release</DCC_ObjOutput>
     <DCC_HppOutput>..\..\..\Intermediate\D2007\Win32\Release</DCC_HppOutput>
-    <DCC_UnitSearchPath>$(BDS)\Source\DUnit\src;..\..\delphi-fastmm\;..\;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_UnitSearchPath>
-    <DCC_ResourcePath>$(BDS)\Source\DUnit\src;..\..\delphi-fastmm\;..\;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_ResourcePath>
-    <DCC_ObjPath>$(BDS)\Source\DUnit\src;..\..\delphi-fastmm\;..\;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_ObjPath>
-    <DCC_IncludePath>$(BDS)\Source\DUnit\src;..\..\delphi-fastmm\;..\;$(BDS)\Source\dUnit\Contrib\XMLReporting</DCC_IncludePath>
+    <DCC_UnitSearchPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_UnitSearchPath>
+    <DCC_ResourcePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ResourcePath>
+    <DCC_ObjPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ObjPath>
+    <DCC_IncludePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_IncludePath>
     <DCC_SYMBOL_DEPRECATED>False</DCC_SYMBOL_DEPRECATED>
     <DCC_SYMBOL_LIBRARY>False</DCC_SYMBOL_LIBRARY>
     <DCC_SYMBOL_PLATFORM>False</DCC_SYMBOL_PLATFORM>
@@ -95,7 +95,7 @@
 </Project>
 <!-- EurekaLog First Line
 [Exception Log]
-EurekaLog Version=6104
+EurekaLog Version=6002
 Activate=0
 Activate Handle=1
 Save Log File=1
