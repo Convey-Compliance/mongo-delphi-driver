@@ -33,7 +33,6 @@ uses
 type
   TEnumeration = (eFirst, eSecond);
   TEnumerationSet = set of TEnumeration;
-  TMethodEvent = procedure of object;
   {$M+}
   TSubObject = class
   private
@@ -53,7 +52,6 @@ type
     FThe_06_ShortString: ShortString;
     FThe_07_Set: TEnumerationSet;
     FThe_08_SubObject: TSubObject;
-    FThe_09_MethodPointer: TMethodEvent;
     FThe_10_WChar: WideChar;
     FThe_11_AnsiString: AnsiString;
     FThe_12_WideString: WideString;
@@ -81,7 +79,6 @@ type
     property The_06_ShortString: ShortString read FThe_06_ShortString write FThe_06_ShortString;
     property The_07_Set: TEnumerationSet read FThe_07_Set write FThe_07_Set;
     property The_08_SubObject: TSubObject read FThe_08_SubObject write FThe_08_SubObject;
-    property The_09_MethodPointer: TMethodEvent read FThe_09_MethodPointer write FThe_09_MethodPointer;
     property The_10_WChar: WideChar read FThe_10_WChar write FThe_10_WChar;
     property The_11_AnsiString: AnsiString read FThe_11_AnsiString write FThe_11_AnsiString;
     property The_12_WideString: WideString read FThe_12_WideString write FThe_12_WideString;
@@ -230,7 +227,6 @@ begin
     Obj.The_06_ShortString := 'Hello';
     Obj.The_07_Set := [eFirst, eSecond];
     Obj.The_08_SubObject.TheInt := 12;
-    Obj.The_09_MethodPointer := nil;
     Obj.The_10_WChar := 'д';
     Obj.The_11_AnsiString := 'Hello World';
     Obj.The_12_WideString := 'дом дом';
