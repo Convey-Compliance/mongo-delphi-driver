@@ -305,6 +305,8 @@ begin
       end;
     tkClass : SerializeObject(APropInfo);
     tkVariant : SerializeVariant(APropInfo, APropInfo.Name, Null);
+    tkDynArray :
+      SerializeVariant(nil, APropInfo.Name, GetPropValue(Source, APropInfo));
   end;
 end;
 
