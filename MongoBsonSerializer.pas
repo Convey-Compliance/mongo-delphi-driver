@@ -342,8 +342,9 @@ end;
 procedure TPrimitivesBsonSerializer.SerializeVariant(APropInfo: PPropInfo;
     const AName: String; const AVariant: Variant);
 var
-  v : Variant;
-  i : integer;
+  v, tmp : Variant;
+  i, j : integer;
+  dim : integer;
 begin
   if APropInfo <> nil then
     v := GetVariantProp(Source, APropInfo)
@@ -360,11 +361,23 @@ begin
     varInt64: Target.append(AName, TVarData(v).VInt64);
     else if VarType(v) and varArray = varArray then
       begin
-        if VarArrayDimCount(v) > 1 then
-          exit; // We will support only one dimensional arrays
+        dim := VarArrayDimCount(v);
         Target.startArray(AName);
-        for i := VarArrayLowBound(v, 1) to VarArrayHighBound(v, 1) do
-          SerializeVariant(nil, '', v[i]);
+        for i := 1 to dim do
+        begin
+          if dim > 1 then
+            Target.startArray('');
+          for j := VarArrayLowBound(v, i) to VarArrayHighBound(v, i) do
+          begin
+            if dim > 1 then
+              tmp := VarArrayGet(v, [i - 1, j])
+            else
+              tmp := v[j];
+            SerializeVariant(nil, '', tmp);
+          end;
+          if dim > 1 then
+            Target.finishObject;
+        end;
         Target.finishObject;
       end;
   end;
@@ -530,9 +543,17 @@ procedure TPrimitivesBsonDeserializer.DeserializeVariantArray(p: PPropInfo);
 var
   subIt : IBsonIterator;
   v : Variant;
-  i : integer;
+  i, dim : integer;
 begin
   subIt := Source.subiterator;
+  dim := 1;
+  while subIt.Kind <> bsonEOO do
+  begin
+    subIt := subIt.subiterator;
+    Inc(dim);
+  end;
+
+  //v := GetVariantProp(Target, p);
   v := VarArrayCreate([0, 0], varVariant); // Types can vary in BSON. We will use Variant for our array
   i := 0;
   while subIt.next do
@@ -543,6 +564,7 @@ begin
       inc(i);
     end;
   VarArrayRedim(v, i - 1);
+
   SetVariantProp(Target, p, v);
 end;
 
