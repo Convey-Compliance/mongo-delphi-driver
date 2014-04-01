@@ -459,6 +459,10 @@ begin
     Check(not it.next, 'Iterator should be at end');
 
     Obj2 := TTestObject.Create;
+    SetLength(dynIntArrArr, 2);
+    for I := 0 to Length(dynIntArrArr) - 1 do
+      SetLength(dynIntArrArr[I], 2);
+    obj.The_24_DynIntArrArr := dynIntArrArr;
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := NewBsonIterator(b);
@@ -478,6 +482,10 @@ begin
       Check(obj2.The_07_Set = [eFirst, eSecond], 'obj2.The_07_Set = [eFirst, eSecond]');
 
       CheckEquals(12, Obj2.The_08_SubObject.TheInt, 'Obj.The_08_SubObject.TheInt should be 12');
+
+      CheckEquals(2, Length(Obj2.The_09_DynIntArr), 'Obj2.The_09_DynIntArr Length should = 2');
+      CheckEquals(1, Obj2.The_09_DynIntArr[0], 'Value of The_09_DynIntArr[0] doesn''t match');
+      CheckEquals(2, Obj2.The_09_DynIntArr[1], 'Value of The_09_DynIntArr[1] doesn''t match');
 
       CheckEqualsString('Hello World', Obj2.The_11_AnsiString, 'Obj2.The_11_AnsiString doesn''t match value');
 
@@ -500,9 +508,18 @@ begin
       {$ENDIF}
 
       CheckEquals(0, VarArrayLowBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray low bound equals 0');
-      CheckEquals(1, VarArrayHighBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray high bound equals 0');
+      CheckEquals(1, VarArrayHighBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray high bound equals 1');
       CheckEquals(16, Obj2.The_16_VariantAsArray[0], 'Value of The_16_VariantAsArray[0] doesn''t match');
       CheckEquals(22, Obj2.The_16_VariantAsArray[1], 'Value of The_16_VariantAsArray[1] doesn''t match');
+
+      CheckEquals(0, VarArrayLowBound(Obj2.The_17_VariantTwoDimArray, 1), 'Obj2.The_17_VariantTwoDimArray low bound equals 0');
+      CheckEquals(2, VarArrayHighBound(Obj2.The_17_VariantTwoDimArray, 1), 'Obj2.The_17_VariantTwoDimArray high bound equals 1');
+      CheckEquals(0, VarArrayLowBound(Obj2.The_17_VariantTwoDimArray, 2), 'Obj2.The_17_VariantTwoDimArray low bound equals 0');
+      CheckEquals(1, VarArrayHighBound(Obj2.The_17_VariantTwoDimArray, 2), 'Obj2.The_17_VariantTwoDimArray high bound equals 1');
+      CheckEquals(16, Obj2.The_17_VariantTwoDimArray[0, 0], 'Value of The_17_VariantTwoDimArray[0, 0] doesn''t match');
+      CheckEquals(22, Obj2.The_17_VariantTwoDimArray[0, 1], 'Value of The_17_VariantTwoDimArray[0, 1] doesn''t match');
+      CheckEquals(33, Obj2.The_17_VariantTwoDimArray[1, 0], 'Value of The_17_VariantTwoDimArray[1, 0] doesn''t match');
+      CheckEquals(44, Obj2.The_17_VariantTwoDimArray[1, 1], 'Value of The_17_VariantTwoDimArray[1, 1] doesn''t match');
 
       Check(Obj2.The_19_Boolean, 'Obj2.The_19_Boolean should be true');
 

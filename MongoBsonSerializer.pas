@@ -60,7 +60,8 @@ type
     procedure DeserializeIterator;
     procedure DeserializeObject(p: PPropInfo);
     procedure DeserializeSet(p: PPropInfo);
-    procedure DeserializeVariantArray(p: PPropInfo);
+    function DeserializeVariantArray(p: PPropInfo) : Variant;
+    function GetArrayDimension(it: IBsonIterator) : Integer;
   public
     procedure Deserialize; override;
   end;
@@ -456,6 +457,8 @@ end;
 procedure TPrimitivesBsonDeserializer.DeserializeIterator;
 var
   p : PPropInfo;
+  po : Pointer;
+  v : Variant;
 begin
   while Source.next do
     begin
@@ -496,7 +499,16 @@ begin
         bsonDATE : SetFloatProp (Target, p, Source.AsDateTime);
         bsonARRAY : case p^.PropType^.Kind of
             tkSet : DeserializeSet(p);
-            tkVariant : DeserializeVariantArray(p);
+            tkVariant : SetVariantProp(Target, p, DeserializeVariantArray(p));
+            tkDynArray :
+            begin
+              v := DeserializeVariantArray(p);
+              if VarArrayDimCount(v) = 1 then // unsupported multidimensional
+              begin
+                DynArrayFromVariant(po, v, p^.PropType^);
+                SetDynArrayProp(Target, p, po);
+              end
+            end;
             tkClass : DeserializeObject(p);
           end;
         bsonOBJECT, bsonBINDATA : if p^.PropType^.Kind = tkClass then
@@ -539,33 +551,54 @@ begin
   SetSetProp(Target, p, setValue);
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeVariantArray(p: PPropInfo);
+function TPrimitivesBsonDeserializer.DeserializeVariantArray(p: PPropInfo) : Variant;
 var
-  subIt : IBsonIterator;
+  subIt, currIt : IBsonIterator;
   v : Variant;
-  i, dim : integer;
+  i, j, dim : integer;
 begin
+  dim := GetArrayDimension(Source);
+  j := 0;
+
+  if dim > 1 then
+    v := VarArrayCreate([0, dim, 0, 256], varVariant)
+  else
+    v := VarArrayCreate([0, 256], varVariant);
+
   subIt := Source.subiterator;
-  dim := 1;
-  while subIt.Kind <> bsonEOO do
+  for i := 0 to dim - 1 do
   begin
-    subIt := subIt.subiterator;
-    Inc(dim);
-  end;
-
-  //v := GetVariantProp(Target, p);
-  v := VarArrayCreate([0, 0], varVariant); // Types can vary in BSON. We will use Variant for our array
-  i := 0;
-  while subIt.next do
+    if dim > 1 then
     begin
-      if i >= VarArrayHighBound(v, 1) - VarArrayLowBound(v, 1) + 1 then
-        VarArrayRedim(v, (VarArrayHighBound(v, 1) + 1) * 2);
-      v[i] := subIt.value;
-      inc(i);
+      subit.next;
+      currIt := subit.subiterator;
+    end
+    else
+      currIt := subit;
+    for j := VarArrayLowBound(v, dim) to VarArrayHighBound(v, dim) do
+    begin
+      if not currIt.next then
+        break;
+      if j >= VarArrayHighBound(v, dim) - VarArrayLowBound(v, dim) + 1 then
+        VarArrayRedim(v, (VarArrayHighBound(v, dim) + 1) * 2);
+      if dim > 1 then
+        v[i, j] := currIt.value
+      else
+        v[j] := currIt.value;
     end;
-  VarArrayRedim(v, i - 1);
+  end;
+  VarArrayRedim(v, j - 1);
+  Result := v;
+end;
 
-  SetVariantProp(Target, p, v);
+function TPrimitivesBsonDeserializer.GetArrayDimension(it: IBsonIterator) : Integer;
+begin
+  Result := 0;
+  while it.Kind = bsonARRAY do
+  begin
+    Inc(Result);
+    it := it.subiterator;
+  end;
 end;
 
 { TStringsBsonDeserializer }
