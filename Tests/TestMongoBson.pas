@@ -1371,9 +1371,9 @@ begin
   Buf.Append('UTF8String', 'jステステl');
   Buf.Append('Double', MaxDouble);
   Buf.Append('Double', MinDouble);
-  Buf.Append('DateTime', MinDateTime);
+  Buf.appendDate('DateTime', MinDateTime);
   FNow := Now;
-  Buf.Append('DateTime', FNow);
+  Buf.appendDate('DateTime', FNow);
   Buf.Append('Boolean', true);
   Buf.Append('Boolean', false);
   Buf.appendBinary('BIN', 0, @ABinData, sizeof(ABinData));
@@ -1445,17 +1445,17 @@ end;
 procedure TestIBsonIterator.TestAsDouble;
 begin
   FIBsonIterator := b.find('Double');
-  CheckEquals(MaxDouble, FIBsonIterator.AsDouble);
+  CheckTrue(SameValue(MaxDouble, FIBsonIterator.AsDouble));
   FIBsonIterator.Next;
-  CheckEquals(MinDouble, FIBsonIterator.AsDouble);
+  CheckTrue(SameValue(MinDouble, FIBsonIterator.AsDouble));
 end;
 
 procedure TestIBsonIterator.TestAsDateTime;
 begin
   FIBsonIterator := b.find('DateTime');
-  CheckEquals(MinDateTime, FIBsonIterator.AsDateTime);
+  CheckEquals(DateTimeToStr(MinDateTime), DateTimeToStr(FIBsonIterator.AsDateTime));
   FIBsonIterator.Next;
-  CheckEquals(FNow, FIBsonIterator.AsDateTime);
+  CheckEquals(DateTimeToStr(FNow), DateTimeToStr(FIBsonIterator.AsDateTime));
 end;
 
 procedure TestIBsonIterator.TestAsBoolean;
