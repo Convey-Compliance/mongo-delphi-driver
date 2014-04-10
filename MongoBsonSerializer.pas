@@ -76,7 +76,7 @@ function CreateDeserializer(AClass : TClass): TBaseBsonDeserializer;
 implementation
 
 uses
-  Variants, MongoApi;
+  MongoApi{$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
 resourcestring
   SObjectHasNotPublishedProperties = 'Object has not published properties. review your logic';

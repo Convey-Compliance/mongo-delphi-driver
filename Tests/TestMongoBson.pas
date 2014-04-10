@@ -1,4 +1,4 @@
-﻿unit TestMongoBson;
+unit TestMongoBson;
 {
 
   Delphi DUnit Test Case
@@ -224,6 +224,10 @@ uses
 
 const
   DELTA_DATE = 0.00009999;
+  {$IFDEF VER130}
+  MinDateTime: TDateTime = -657434.0;      { 01/01/0100 12:00:00.000 AM }
+  MaxDateTime: TDateTime =  2958465.99999; { 12/31/9999 11:59:59.999 PM }
+  {$ENDIF}
   
 procedure TestIBsonOID.SetUp;
 begin
@@ -1453,9 +1457,9 @@ end;
 procedure TestIBsonIterator.TestAsDateTime;
 begin
   FIBsonIterator := b.find('DateTime');
-  CheckEquals(DateTimeToStr(MinDateTime), DateTimeToStr(FIBsonIterator.AsDateTime));
+  CheckEqualsString(DateTimeToStr(MinDateTime), DateTimeToStr(FIBsonIterator.AsDateTime));
   FIBsonIterator.Next;
-  CheckEquals(DateTimeToStr(FNow), DateTimeToStr(FIBsonIterator.AsDateTime));
+  CheckEqualsString(DateTimeToStr(FNow), DateTimeToStr(FIBsonIterator.AsDateTime));
 end;
 
 procedure TestIBsonIterator.TestAsBoolean;
