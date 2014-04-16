@@ -254,6 +254,10 @@ type
     ['{BB81B815-9B18-43B7-A894-2FBE4F9B7562}']
     function GetAsInt64: Int64;
     function GetAsUTF8String : UTF8String;
+    function GetAsInteger: Integer;
+    function GetAsDouble: Double;
+    function GetAsDateTime: TDateTime;
+    function GetAsBoolean: Boolean;
     function getHandle: Pointer;
     { Get a TBsonBinary object for the BINDATA field pointed to by this
       iterator. }
@@ -304,6 +308,10 @@ type
     function value: Variant;
     property AsInt64: Int64 read GetAsInt64;
     property AsUTF8String : UTF8String read GetAsUTF8String;
+    property AsInteger: Integer read GetAsInteger;
+    property AsDouble: Double read GetAsDouble;
+    property AsDateTime: TDateTime read GetAsDateTime;
+    property AsBoolean: Boolean read GetAsBoolean;
     { Pointer to externally managed data. }
     property Handle : Pointer read getHandle;
   end;
@@ -538,6 +546,10 @@ type
     procedure ErrorIteratorAtEnd(const AFnName: String);
     function getAsInt64: Int64;
     function GetAsUTF8String: UTF8String;
+    function GetAsInteger: Integer;
+    function GetAsDouble: Double;
+    function GetAsDateTime: TDateTime;
+    function GetAsBoolean: Boolean;
     procedure iterateAndFillArray(i: IBsonIterator; var Result; var j: Integer;
         BSonType: TBsonType);
     procedure prepareArrayIterator(var i: IBsonIterator; var j, count: Integer;
@@ -846,7 +858,37 @@ end;
 
 function TBsonIterator.GetAsUTF8String: UTF8String;
 begin
+  checkValidHandle;
+  CheckIteratorAtEnd('GetAsUTF8String');
   Result := UTF8String(bson_iterator_string(Handle));
+end;
+
+function TBsonIterator.GetAsInteger: Integer;
+begin
+  checkValidHandle;
+  CheckIteratorAtEnd('GetAsInteger');
+  Result := bson_iterator_int(Handle);
+end;
+
+function TBsonIterator.GetAsDouble: Double;
+begin
+  checkValidHandle;
+  CheckIteratorAtEnd('GetAsDouble');
+  Result := bson_iterator_double(Handle);
+end;
+
+function TBsonIterator.GetAsDateTime: TDateTime;
+begin
+  checkValidHandle;
+  CheckIteratorAtEnd('GetAsDateTime');
+  Result := (bson_iterator_date(Handle) / (1000 * 60 * 60 * 24)) + DATE_ADJUSTER;
+end;
+
+function TBsonIterator.GetAsBoolean: Boolean;
+begin
+  checkValidHandle;
+  CheckIteratorAtEnd('GetAsBoolean');
+  Result := bson_iterator_bool(Handle);
 end;
 
 function TBsonIterator.kind: TBsonType;

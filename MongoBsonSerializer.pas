@@ -76,7 +76,7 @@ function CreateDeserializer(AClass : TClass): TBaseBsonDeserializer;
 implementation
 
 uses
-  Variants, MongoApi;
+  MongoApi{$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
 resourcestring
   SObjectHasNotPublishedProperties = 'Object has not published properties. review your logic';
@@ -449,14 +449,14 @@ begin
       if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [bsonARRAY])  then
         SetVariantProp(Target, p, Source.value)
       else case Source.Kind of
-        bsonINT : SetOrdProp(Target, p, Source.value);
-        bsonBOOL : if Boolean(Source.value) then
+        bsonINT : SetOrdProp(Target, p, Source.AsInteger);
+        bsonBOOL : if Source.AsBoolean then
             SetEnumProp(Target, p, 'True')
           else SetEnumProp(Target, p, 'False');
         bsonLONG : SetInt64Prop(Target, p, Source.AsInt64);
         bsonSTRING, bsonSYMBOL : if PropInfos.TryGetValue(Source.key, p) then
           case p^.PropType^.Kind of
-            tkEnumeration : SetEnumProp(Target, p, Source.value);
+            tkEnumeration : SetEnumProp(Target, p, Source.AsUTF8String);
             tkWString :
             {$IFDEF DELPHIXE}
             SetWideStrProp(Target, p, WideString(Source.AsUTF8String));
@@ -466,9 +466,9 @@ begin
             {$IFDEF DELPHIXE}
             tkUString,
             {$ENDIF}
-            tkString, tkLString : SetStrProp(Target, p, Source.Value);
-            tkChar : if length(Source.value) > 0 then
-              SetOrdProp(Target, p, NativeInt(UTF8String(Source.value)[1]));
+            tkString, tkLString : SetStrProp(Target, p, Source.AsUTF8String);
+            tkChar : if length(Source.AsUTF8String) > 0 then
+              SetOrdProp(Target, p, NativeInt(Source.AsUTF8String[1]));
             {$IFDEF DELPHIXE}
             tkWChar : if length(Source.value) > 0 then
               SetOrdProp(Target, p, NativeInt(string(Source.value)[1]));
@@ -477,7 +477,8 @@ begin
               SetOrdProp(Target, p, NativeInt(UTF8Decode(Source.value)[1]));
             {$ENDIF}
           end;
-        bsonDOUBLE, bsonDATE : SetFloatProp (Target, p, Source.Value);
+        bsonDOUBLE : SetFloatProp (Target, p, Source.AsDouble);
+        bsonDATE : SetFloatProp (Target, p, Source.AsDateTime);
         bsonARRAY : case p^.PropType^.Kind of
             tkSet : DeserializeSet(p);
             tkVariant : DeserializeVariantArray(p);
@@ -516,7 +517,7 @@ begin
   subIt := Source.subiterator;
   // this is not efficient, but typically sets are going to be small entities
   while subIt.next do
-    setValue := setValue + subIt.value + ',';
+    setValue := setValue + subIt.AsUTF8String + ',';
   if setValue[length(setValue)] = ',' then
     setValue[length(setValue)] := ']'
   else setValue := setValue + ']';
@@ -551,7 +552,7 @@ var
 begin
   AStrings := Target as TStrings;
   while Source.next do
-    AStrings.Add(Source.value);
+    AStrings.Add(Source.AsUTF8String);
 end;
 
 { TPropInfosDictionary }
@@ -627,7 +628,7 @@ var
 begin
   AStrings := Target as TStrings;
   while Source.next do
-    AStrings.Add(Source.key + '=' + Source.value);
+    AStrings.Add(Source.key + '=' + Source.AsUTF8String);
 end;
 
 initialization
