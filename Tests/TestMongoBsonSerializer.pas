@@ -33,6 +33,7 @@ uses
 type
   TEnumeration = (eFirst, eSecond);
   TEnumerationSet = set of TEnumeration;
+  TDynIntArr = array of Integer;
   {$M+}
   TSubObject = class
   private
@@ -52,6 +53,7 @@ type
     FThe_06_ShortString: ShortString;
     FThe_07_Set: TEnumerationSet;
     FThe_08_SubObject: TSubObject;
+    FThe_09_DynIntArr: TDynIntArr;
     FThe_10_WChar: WideChar;
     FThe_11_AnsiString: AnsiString;
     FThe_12_WideString: WideString;
@@ -79,6 +81,7 @@ type
     property The_06_ShortString: ShortString read FThe_06_ShortString write FThe_06_ShortString;
     property The_07_Set: TEnumerationSet read FThe_07_Set write FThe_07_Set;
     property The_08_SubObject: TSubObject read FThe_08_SubObject write FThe_08_SubObject;
+    property The_09_DynIntArr: TDynIntArr read FThe_09_DynIntArr write FThe_09_DynIntArr;
     property The_10_WChar: WideChar read FThe_10_WChar write FThe_10_WChar;
     property The_11_AnsiString: AnsiString read FThe_11_AnsiString write FThe_11_AnsiString;
     property The_12_WideString: WideString read FThe_12_WideString write FThe_12_WideString;
@@ -209,6 +212,7 @@ var
   v : Variant;
   b : IBson;
   bin : IBsonBinary;
+  dynIntArr : TDynIntArr;
 begin
   FSerializer.Target := NewBsonBuffer();
   Obj := TTestObject.Create;
@@ -228,6 +232,10 @@ begin
     Obj.The_07_Set := [eFirst, eSecond];
     Obj.The_08_SubObject.TheInt := 12;
     Obj.The_10_WChar := 'д';
+    SetLength(dynIntArr, 2);
+    dynIntArr[0] := 1;
+    dynIntArr[1] := 2;
+    Obj.The_09_DynIntArr := dynIntArr;
     Obj.The_11_AnsiString := 'Hello World';
     Obj.The_12_WideString := 'дом дом';
     {$IFDEF DELPHIXE}
@@ -309,6 +317,16 @@ begin
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(12, SubIt.Value, 'Iterator should be equals to 12');
+    Check(not SubIt.next, 'Iterator should be at end');
+
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('The_09_DynIntArr', it.key);
+    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    SubIt := it.subiterator;
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(1, SubIt.Value, 'Iterator should be equals to 1');
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(2, SubIt.Value, 'Iterator should be equals to 2');
     Check(not SubIt.next, 'Iterator should be at end');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
