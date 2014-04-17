@@ -60,7 +60,7 @@ type
     procedure DeserializeIterator;
     procedure DeserializeObject(p: PPropInfo);
     procedure DeserializeSet(p: PPropInfo);
-    function DeserializeVariantArray(p: PPropInfo) : Variant;
+    procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
     function GetArrayDimension(it: IBsonIterator) : Integer;
   public
     procedure Deserialize; override;
@@ -499,10 +499,14 @@ begin
         bsonDATE : SetFloatProp (Target, p, Source.AsDateTime);
         bsonARRAY : case p^.PropType^.Kind of
             tkSet : DeserializeSet(p);
-            tkVariant : SetVariantProp(Target, p, DeserializeVariantArray(p));
+            tkVariant :
+            begin
+              DeserializeVariantArray(p, v);
+              SetVariantProp(Target, p, v);
+            end;
             tkDynArray :
             begin
-              v := DeserializeVariantArray(p);
+              DeserializeVariantArray(p, v);
               if VarArrayDimCount(v) = 1 then // unsupported multidimensional
               begin
                 DynArrayFromVariant(po, v, p^.PropType^);
@@ -551,10 +555,9 @@ begin
   SetSetProp(Target, p, setValue);
 end;
 
-function TPrimitivesBsonDeserializer.DeserializeVariantArray(p: PPropInfo) : Variant;
+procedure TPrimitivesBsonDeserializer.DeserializeVariantArray(p: PPropInfo; var v: Variant);
 var
   subIt, currIt : IBsonIterator;
-  v : Variant;
   i, j, dim : integer;
 begin
   dim := GetArrayDimension(Source);
@@ -588,7 +591,6 @@ begin
     end;
   end;
   VarArrayRedim(v, j - 1);
-  Result := v;
 end;
 
 function TPrimitivesBsonDeserializer.GetArrayDimension(it: IBsonIterator) : Integer;
