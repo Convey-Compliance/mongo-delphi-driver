@@ -459,10 +459,11 @@ begin
     Check(not it.next, 'Iterator should be at end');
 
     Obj2 := TTestObject.Create;
+    Obj2.The_17_VariantTwoDimArray := VarArrayCreate([0, 1, 0, 1], varInteger);
     SetLength(dynIntArrArr, 2);
     for I := 0 to Length(dynIntArrArr) - 1 do
       SetLength(dynIntArrArr[I], 2);
-    obj.The_24_DynIntArrArr := dynIntArrArr;
+    obj2.The_24_DynIntArrArr := dynIntArrArr;
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := NewBsonIterator(b);
@@ -512,10 +513,6 @@ begin
       CheckEquals(16, Obj2.The_16_VariantAsArray[0], 'Value of The_16_VariantAsArray[0] doesn''t match');
       CheckEquals(22, Obj2.The_16_VariantAsArray[1], 'Value of The_16_VariantAsArray[1] doesn''t match');
 
-      CheckEquals(0, VarArrayLowBound(Obj2.The_17_VariantTwoDimArray, 1), 'Obj2.The_17_VariantTwoDimArray low bound equals 0');
-      CheckEquals(2, VarArrayHighBound(Obj2.The_17_VariantTwoDimArray, 1), 'Obj2.The_17_VariantTwoDimArray high bound equals 1');
-      CheckEquals(0, VarArrayLowBound(Obj2.The_17_VariantTwoDimArray, 2), 'Obj2.The_17_VariantTwoDimArray low bound equals 0');
-      CheckEquals(1, VarArrayHighBound(Obj2.The_17_VariantTwoDimArray, 2), 'Obj2.The_17_VariantTwoDimArray high bound equals 1');
       CheckEquals(16, Obj2.The_17_VariantTwoDimArray[0, 0], 'Value of The_17_VariantTwoDimArray[0, 0] doesn''t match');
       CheckEquals(22, Obj2.The_17_VariantTwoDimArray[0, 1], 'Value of The_17_VariantTwoDimArray[0, 1] doesn''t match');
       CheckEquals(33, Obj2.The_17_VariantTwoDimArray[1, 0], 'Value of The_17_VariantTwoDimArray[1, 0] doesn''t match');
@@ -529,6 +526,11 @@ begin
 
       CheckEquals(length(SomeData), obj2.The_21_MemStream.Size, 'data size doesn''t match');
       Check(CompareMem(SomeData, obj2.The_21_MemStream.Memory, obj2.The_21_MemStream.Size), 'memory doesn''t match');
+
+      CheckEquals(1, Obj2.The_24_DynIntArrArr[0, 0], 'Value of The_24_DynIntArrArr[0, 0] doesn''t match');
+      CheckEquals(2, Obj2.The_24_DynIntArrArr[0, 1], 'Value of The_24_DynIntArrArr[0, 1] doesn''t match');
+      CheckEquals(3, Obj2.The_24_DynIntArrArr[1, 0], 'Value of The_24_DynIntArrArr[1, 0] doesn''t match');
+      CheckEquals(4, Obj2.The_24_DynIntArrArr[1, 1], 'Value of The_24_DynIntArrArr[1, 1] doesn''t match');
     finally
       Obj2.Free;
     end;

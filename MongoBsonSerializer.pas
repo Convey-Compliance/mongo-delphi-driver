@@ -501,17 +501,26 @@ begin
             tkSet : DeserializeSet(p);
             tkVariant :
             begin
+              v := GetVariantProp(Target, p);
               DeserializeVariantArray(p, v);
               SetVariantProp(Target, p, v);
             end;
             tkDynArray :
             begin
-              DeserializeVariantArray(p, v);
-              if VarArrayDimCount(v) = 1 then // unsupported multidimensional
+              if DynArrayDim(p^.PropType^) = 1 then
               begin
+                DeserializeVariantArray(p, v);
                 DynArrayFromVariant(po, v, p^.PropType^);
                 SetDynArrayProp(Target, p, po);
               end
+              else
+              begin
+                po := GetDynArrayProp(Target, p^.Name);
+                DynArrayToVariant(v, po, p^.PropType^);
+                DeserializeVariantArray(p, v);
+                DynArrayFromVariant(po, v, p^.PropType^);
+                SetDynArrayProp(Target, p, po);
+              end;
             end;
             tkClass : DeserializeObject(p);
           end;
@@ -564,7 +573,10 @@ begin
   j := 0;
 
   if dim > 1 then
-    v := VarArrayCreate([0, dim, 0, 256], varVariant)
+  begin
+    if dim <> VarArrayDimCount(v) then
+      exit;
+  end
   else
     v := VarArrayCreate([0, 256], varVariant);
 
@@ -582,7 +594,7 @@ begin
     begin
       if not currIt.next then
         break;
-      if j >= VarArrayHighBound(v, dim) - VarArrayLowBound(v, dim) + 1 then
+      if (dim = 1) and (j >= VarArrayHighBound(v, dim) - VarArrayLowBound(v, dim) + 1) then
         VarArrayRedim(v, (VarArrayHighBound(v, dim) + 1) * 2);
       if dim > 1 then
         v[i, j] := currIt.value
@@ -590,7 +602,8 @@ begin
         v[j] := currIt.value;
     end;
   end;
-  VarArrayRedim(v, j - 1);
+  if dim = 1 then
+    VarArrayRedim(v, j - 1);
 end;
 
 function TPrimitivesBsonDeserializer.GetArrayDimension(it: IBsonIterator) : Integer;
