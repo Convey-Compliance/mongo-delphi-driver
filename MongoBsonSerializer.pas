@@ -507,7 +507,7 @@ begin
             end;
             tkDynArray :
             begin
-              if DynArrayDim(p^.PropType^) = 1 then
+              if DynArrayDim(PDynArrayTypeInfo(p^.PropType^)) = 1 then
               begin
                 DeserializeVariantArray(p, v);
                 DynArrayFromVariant(po, v, p^.PropType^);
