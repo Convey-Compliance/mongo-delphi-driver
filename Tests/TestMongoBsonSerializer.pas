@@ -33,7 +33,8 @@ uses
 type
   TEnumeration = (eFirst, eSecond);
   TEnumerationSet = set of TEnumeration;
-  TMethodEvent = procedure of object;
+  TDynIntArr = array of Integer;
+  TDynIntArrArr = array of array of Integer;
   {$M+}
   TSubObject = class
   private
@@ -53,7 +54,7 @@ type
     FThe_06_ShortString: ShortString;
     FThe_07_Set: TEnumerationSet;
     FThe_08_SubObject: TSubObject;
-    FThe_09_MethodPointer: TMethodEvent;
+    FThe_09_DynIntArr: TDynIntArr;
     FThe_10_WChar: WideChar;
     FThe_11_AnsiString: AnsiString;
     FThe_12_WideString: WideString;
@@ -68,6 +69,7 @@ type
     FThe_21_MemStream: TMemoryStream;
     FThe_22_BlankMemStream: TMemoryStream;
     FThe_23_EmptySet: TEnumerationSet;
+    FThe_24_DynIntArrArr: TDynIntArrArr;
   public
     constructor Create;
     destructor Destroy; override;
@@ -81,7 +83,7 @@ type
     property The_06_ShortString: ShortString read FThe_06_ShortString write FThe_06_ShortString;
     property The_07_Set: TEnumerationSet read FThe_07_Set write FThe_07_Set;
     property The_08_SubObject: TSubObject read FThe_08_SubObject write FThe_08_SubObject;
-    property The_09_MethodPointer: TMethodEvent read FThe_09_MethodPointer write FThe_09_MethodPointer;
+    property The_09_DynIntArr: TDynIntArr read FThe_09_DynIntArr write FThe_09_DynIntArr;
     property The_10_WChar: WideChar read FThe_10_WChar write FThe_10_WChar;
     property The_11_AnsiString: AnsiString read FThe_11_AnsiString write FThe_11_AnsiString;
     property The_12_WideString: WideString read FThe_12_WideString write FThe_12_WideString;
@@ -96,6 +98,7 @@ type
     property The_21_MemStream: TMemoryStream read FThe_21_MemStream;
     property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
     property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
+    property The_24_DynIntArrArr: TDynIntArrArr read FThe_24_DynIntArrArr write FThe_24_DynIntArrArr;
   end;
 
   TTestObjectWithObjectAsStringList = class
@@ -206,12 +209,15 @@ const
   SomeData : PAnsiChar = '1234567890qwertyuiop';
   Buf      : PAnsiChar = '                    ';
 var
-  it, SubIt : IBsonIterator;
+  it, SubIt, SubSubIt : IBsonIterator;
   Obj : TTestObject;
   Obj2 : TTestObject;
   v : Variant;
   b : IBson;
   bin : IBsonBinary;
+  dynIntArr : TDynIntArr;
+  dynIntArrArr : TDynIntArrArr;
+  I : Integer;
 begin
   FSerializer.Target := NewBsonBuffer();
   Obj := TTestObject.Create;
@@ -230,8 +236,11 @@ begin
     Obj.The_06_ShortString := 'Hello';
     Obj.The_07_Set := [eFirst, eSecond];
     Obj.The_08_SubObject.TheInt := 12;
-    Obj.The_09_MethodPointer := nil;
     Obj.The_10_WChar := 'д';
+    SetLength(dynIntArr, 2);
+    dynIntArr[0] := 1;
+    dynIntArr[1] := 2;
+    Obj.The_09_DynIntArr := dynIntArr;
     Obj.The_11_AnsiString := 'Hello World';
     Obj.The_12_WideString := 'дом дом';
     {$IFDEF DELPHIXE}
@@ -261,9 +270,18 @@ begin
     Obj.The_19_Boolean := True;
     Obj.The_20_DateTime := Now;
     Obj.The_21_MemStream.Write(SomeData^, length(SomeData));
+    SetLength(dynIntArrArr, 2);
+    for I := 0 to Length(dynIntArrArr) - 1 do
+      SetLength(dynIntArrArr[I], 2);
+    dynIntArrArr[0, 0] := 1;
+    dynIntArrArr[0, 1] := 2;
+    dynIntArrArr[1, 0] := 3;
+    dynIntArrArr[1, 1] := 4;
+    Obj.The_24_DynIntArrArr := dynIntArrArr;
+
     FSerializer.Serialize('');
 
-    b := FSerializer.Target.finish;
+    b := FSerializer.Target.finish;                             // b.display; exit;
     it := NewBsonIterator(b);
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_00_Int', it.key);
@@ -316,6 +334,16 @@ begin
     Check(not SubIt.next, 'Iterator should be at end');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('The_09_DynIntArr', it.key);
+    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    SubIt := it.subiterator;
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(1, SubIt.Value, 'Iterator should be equals to 1');
+    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(2, SubIt.Value, 'Iterator should be equals to 2');
+    Check(not SubIt.next, 'Iterator should be at end');
+
+    CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_10_WChar', it.key);
     CheckEqualsWideString('д', UTF8Decode(it.AsUTF8String), 'Iterator does''t match');
 
@@ -365,6 +393,26 @@ begin
     CheckEquals(22, SubIt.Value, 'Iterator should be equals to 22');
     Check(not SubIt.next, 'Iterator should be at end');
 
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('The_17_VariantTwoDimArray', it.key);
+    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    SubIt := it.subiterator;
+    CheckTrue(SubIt.Next, 'Iterator should not be at end');
+    Check(SubIt.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    SubSubIt := SubIt.subiterator;
+    CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
+    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    CheckEquals(16, SubSubIt.Value, 'Iterator should be equals to 16');
+    CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(22, SubSubIt.Value, 'Iterator should be equals to 22');
+    SubIt.next;
+    SubSubIt := SubIt.subiterator;
+    CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
+    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    CheckEquals(33, SubSubIt.Value, 'Iterator should be equals to 16');
+    CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(44, SubSubIt.Value, 'Iterator should be equals to 22');
+
     Check(it.next, 'Iterator should not be at end');
     Check(VarIsNull(it.value), 'expected null value');
 
@@ -388,9 +436,34 @@ begin
     Check(it.next, 'Iterator should not be at end');
     Check(it.Kind = bsonARRAY, 'expecting binary bson');
 
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('The_24_DynIntArrArr', it.key);
+    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    SubIt := it.subiterator;
+    CheckTrue(SubIt.Next, 'Iterator should not be at end');
+    Check(SubIt.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    SubSubIt := SubIt.subiterator;
+    CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
+    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    CheckEquals(1, SubSubIt.Value, 'Iterator should be equals to 16');
+    CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(2, SubSubIt.Value, 'Iterator should be equals to 22');
+    SubIt.next;
+    SubSubIt := SubIt.subiterator;
+    CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
+    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    CheckEquals(3, SubSubIt.Value, 'Iterator should be equals to 16');
+    CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
+    CheckEquals(4, SubSubIt.Value, 'Iterator should be equals to 22');
+
     Check(not it.next, 'Iterator should be at end');
 
     Obj2 := TTestObject.Create;
+    Obj2.The_17_VariantTwoDimArray := VarArrayCreate([0, 1, 0, 1], varInteger);
+    SetLength(dynIntArrArr, 2);
+    for I := 0 to Length(dynIntArrArr) - 1 do
+      SetLength(dynIntArrArr[I], 2);
+    obj2.The_24_DynIntArrArr := dynIntArrArr;
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := NewBsonIterator(b);
@@ -410,6 +483,10 @@ begin
       Check(obj2.The_07_Set = [eFirst, eSecond], 'obj2.The_07_Set = [eFirst, eSecond]');
 
       CheckEquals(12, Obj2.The_08_SubObject.TheInt, 'Obj.The_08_SubObject.TheInt should be 12');
+
+      CheckEquals(2, Length(Obj2.The_09_DynIntArr), 'Obj2.The_09_DynIntArr Length should = 2');
+      CheckEquals(1, Obj2.The_09_DynIntArr[0], 'Value of The_09_DynIntArr[0] doesn''t match');
+      CheckEquals(2, Obj2.The_09_DynIntArr[1], 'Value of The_09_DynIntArr[1] doesn''t match');
 
       CheckEqualsString('Hello World', Obj2.The_11_AnsiString, 'Obj2.The_11_AnsiString doesn''t match value');
 
@@ -432,9 +509,14 @@ begin
       {$ENDIF}
 
       CheckEquals(0, VarArrayLowBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray low bound equals 0');
-      CheckEquals(1, VarArrayHighBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray high bound equals 0');
+      CheckEquals(1, VarArrayHighBound(Obj2.The_16_VariantAsArray, 1), 'Obj2.The_16_VariantAsArray high bound equals 1');
       CheckEquals(16, Obj2.The_16_VariantAsArray[0], 'Value of The_16_VariantAsArray[0] doesn''t match');
       CheckEquals(22, Obj2.The_16_VariantAsArray[1], 'Value of The_16_VariantAsArray[1] doesn''t match');
+
+      CheckEquals(16, Obj2.The_17_VariantTwoDimArray[0, 0], 'Value of The_17_VariantTwoDimArray[0, 0] doesn''t match');
+      CheckEquals(22, Obj2.The_17_VariantTwoDimArray[0, 1], 'Value of The_17_VariantTwoDimArray[0, 1] doesn''t match');
+      CheckEquals(33, Obj2.The_17_VariantTwoDimArray[1, 0], 'Value of The_17_VariantTwoDimArray[1, 0] doesn''t match');
+      CheckEquals(44, Obj2.The_17_VariantTwoDimArray[1, 1], 'Value of The_17_VariantTwoDimArray[1, 1] doesn''t match');
 
       Check(Obj2.The_19_Boolean, 'Obj2.The_19_Boolean should be true');
 
@@ -444,6 +526,11 @@ begin
 
       CheckEquals(length(SomeData), obj2.The_21_MemStream.Size, 'data size doesn''t match');
       Check(CompareMem(SomeData, obj2.The_21_MemStream.Memory, obj2.The_21_MemStream.Size), 'memory doesn''t match');
+
+      CheckEquals(1, Obj2.The_24_DynIntArrArr[0, 0], 'Value of The_24_DynIntArrArr[0, 0] doesn''t match');
+      CheckEquals(2, Obj2.The_24_DynIntArrArr[0, 1], 'Value of The_24_DynIntArrArr[0, 1] doesn''t match');
+      CheckEquals(3, Obj2.The_24_DynIntArrArr[1, 0], 'Value of The_24_DynIntArrArr[1, 0] doesn''t match');
+      CheckEquals(4, Obj2.The_24_DynIntArrArr[1, 1], 'Value of The_24_DynIntArrArr[1, 1] doesn''t match');
     finally
       Obj2.Free;
     end;

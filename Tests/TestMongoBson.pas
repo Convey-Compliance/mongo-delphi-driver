@@ -137,11 +137,17 @@ type
     FTimestamp: IBsonTimestamp;
     IntArr: TIntegerArray;
     StrArr: TStringArray;
+    FNow: TDateTime;
   public
     procedure SetUp; override;
     procedure TearDown; override;
   published
-    procedure TestGetAsInt64;
+    procedure TestAsInteger;
+    procedure TestAsInt64;
+    procedure TestAsUTF8String;
+    procedure TestAsDouble;
+    procedure TestAsDateTime;
+    procedure TestAsBoolean;
     procedure TestgetHandle;
     procedure TestgetBinary;
     procedure TestgetBooleanArray;
@@ -214,10 +220,14 @@ uses
   {$IFDEF USE_LIBBSON}
   LibBsonAPI,
   {$ENDIF}
-  uPrimitiveAllocator;
+  uPrimitiveAllocator, Math;
 
 const
   DELTA_DATE = 0.00009999;
+  {$IFDEF VER130}
+  MinDateTime: TDateTime = -657434.0;      { 01/01/0100 12:00:00.000 AM }
+  MaxDateTime: TDateTime =  2958465.99999; { 12/31/9999 11:59:59.999 PM }
+  {$ENDIF}
   
 procedure TestIBsonOID.SetUp;
 begin
@@ -244,12 +254,10 @@ end;
 
 procedure TestIBsonOID.TestAsString;
 var
-  ReturnValue: UTF8String;
   Val64 : Int64;
 begin
-  ReturnValue := FIBsonOID.AsString;
-  HexToBin(PAnsiChar(ReturnValue), PAnsiChar(@Val64), sizeof(Val64));
-  CheckNotEqualsString('', ReturnValue, 'Call to FIBsonOID should return value <> from ""');
+  HexToBin(PAnsiChar(FIBsonOID.AsString), PAnsiChar(@Val64), sizeof(Val64));
+  CheckNotEqualsString('', FIBsonOID.AsString, 'Call to FIBsonOID should return value <> from ""');
 end;
 
 { TestIBsonCodeWScope }
@@ -1360,8 +1368,18 @@ var
 begin
   Buf := NewBsonBuffer;
   Buf.AppendStr('STR', 'STRVAL');
-  Buf.Append('INT', 1);
-  Buf.Append('INT64', Int64(10));
+  Buf.Append('Integer', Low(Integer));
+  Buf.Append('Integer', High(Integer));
+  Buf.Append('INT64', Low(Int64));
+  Buf.Append('INT64', High(Int64));
+  Buf.Append('UTF8String', 'jステステl');
+  Buf.Append('Double', MaxDouble);
+  Buf.Append('Double', MinDouble);
+  Buf.appendDate('DateTime', MinDateTime);
+  FNow := Now;
+  Buf.appendDate('DateTime', FNow);
+  Buf.Append('Boolean', true);
+  Buf.Append('Boolean', false);
   Buf.appendBinary('BIN', 0, @ABinData, sizeof(ABinData));
   SetLength(BoolArr, 2);
   BoolArr[0] := False;
@@ -1389,8 +1407,6 @@ begin
   bb := BSON(['SUBINT', 123]);
   Buf.Append('SUBOBJ', bb);
   b := Buf.finish;
-  FIBsonIterator := b.iterator;
-  FIBsonIterator.Next;
 end;
 
 procedure TestIBsonIterator.TearDown;
@@ -1408,21 +1424,57 @@ begin
   inherited;
 end;
 
-procedure TestIBsonIterator.TestGetAsInt64;
-var
-  ReturnValue: Int64;
-  i : integer;
+procedure TestIBsonIterator.TestAsInteger;
 begin
-  for i := 1 to 2 do
-    FIBsonIterator.Next;
-  ReturnValue := FIBsonIterator.GetAsInt64;
-  CheckEquals(10, ReturnValue, 'Call to GetAsInt64 should return 10');
+  FIBsonIterator := b.find('Integer');
+  CheckEquals(Low(Integer), FIBsonIterator.AsInteger);
+  FIBsonIterator.Next;
+  CheckEquals(High(Integer), FIBsonIterator.AsInteger);
+end;
+
+procedure TestIBsonIterator.TestAsInt64;
+begin
+  FIBsonIterator := b.find('INT64');
+  CheckEquals(Low(Int64), FIBsonIterator.AsInt64);
+  FIBsonIterator.Next;
+  CheckEquals(High(Int64), FIBsonIterator.AsInt64);
+end;
+
+procedure TestIBsonIterator.TestAsUTF8String;
+begin
+  FIBsonIterator := b.find('UTF8String');
+  CheckEqualsString('jステステl', FIBsonIterator.AsUTF8String, 'Should return jステステl');
+end;
+
+procedure TestIBsonIterator.TestAsDouble;
+begin
+  FIBsonIterator := b.find('Double');
+  CheckTrue(SameValue(MaxDouble, FIBsonIterator.AsDouble));
+  FIBsonIterator.Next;
+  CheckTrue(SameValue(MinDouble, FIBsonIterator.AsDouble));
+end;
+
+procedure TestIBsonIterator.TestAsDateTime;
+begin
+  FIBsonIterator := b.find('DateTime');
+  CheckEqualsString(DateTimeToStr(MinDateTime), DateTimeToStr(FIBsonIterator.AsDateTime));
+  FIBsonIterator.Next;
+  CheckEqualsString(DateTimeToStr(FNow), DateTimeToStr(FIBsonIterator.AsDateTime));
+end;
+
+procedure TestIBsonIterator.TestAsBoolean;
+begin
+  FIBsonIterator := b.find('Boolean');
+  CheckEquals(true, FIBsonIterator.AsBoolean);
+  FIBsonIterator.Next;
+  CheckEquals(false, FIBsonIterator.AsBoolean);
 end;
 
 procedure TestIBsonIterator.TestgetHandle;
 var
   ReturnValue: Pointer;
 begin
+  FIBsonIterator := b.find('Integer');
   ReturnValue := FIBsonIterator.getHandle;
   CheckNotEquals(0, integer(ReturnValue), 'Call to FIBsonIterator.getHandle should return value <> nil');
 end;
@@ -1432,8 +1484,7 @@ var
   ReturnValue: IBsonBinary;
   i : integer;
 begin
-  for i := 1 to 3 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('BIN');
   ReturnValue := FIBsonIterator.getBinary;
   for i := low(ABinData) to high(ABinData) do
     CheckEquals(ABinData[i], PBinData(ReturnValue.getData)^[i], 'Binary data doesn''t match');
@@ -1442,10 +1493,8 @@ end;
 procedure TestIBsonIterator.TestgetBooleanArray;
 var
   ReturnValue: TBooleanArray;
-  i : integer;
 begin
-  for i := 1 to 4 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('BOOLARR');
   ReturnValue := FIBsonIterator.getBooleanArray;
   CheckEquals(length(BoolArr), length(ReturnValue), 'Boolean array size doesn''t match');
   CheckEquals(BoolArr[0], ReturnValue[0], 'First element of boolean array doesn''t match');
@@ -1455,10 +1504,8 @@ end;
 procedure TestIBsonIterator.TestgetCodeWScope;
 var
   ReturnValue: IBsonCodeWScope;
-  i : integer;
 begin
-  for i := 1 to 5 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('CODE');
   ReturnValue := FIBsonIterator.getCodeWScope;
   Check(ReturnValue <> nil, 'BsonCodeWScope object should be <> nil');
   CheckEqualsString('123456', ReturnValue.getCode, 'Code doesn''t match');
@@ -1469,8 +1516,7 @@ var
   ReturnValue: TDoubleArray;
   i : integer;
 begin
-  for i := 1 to 6 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('DBLARR');
   ReturnValue := FIBsonIterator.getDoubleArray;
   for i := low(DblArr) to high(DblArr) do
     CheckEquals(DblArr[i], ReturnValue[i], 'Double array element doesn''t match');
@@ -1481,8 +1527,7 @@ var
   ReturnValue : TIntegerArray;
   i : integer;
 begin
-  for i := 1 to 7 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('INTARR');
   ReturnValue := FIBsonIterator.getIntegerArray;
   for i := low(IntArr) to high(IntArr) do
     CheckEquals(IntArr[i], ReturnValue[i], 'Integer array element doesn''t match');
@@ -1491,10 +1536,8 @@ end;
 procedure TestIBsonIterator.TestgetOID;
 var
   ReturnValue: IBsonOID;
-  i : integer;
 begin
-  for i := 1 to 8 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('BSONOID');
   ReturnValue := FIBsonIterator.getOID;
   CheckEqualsString(BsonOID.AsString, ReturnValue.AsString, 'BsonOID doesn''t match');
 end;
@@ -1502,10 +1545,8 @@ end;
 procedure TestIBsonIterator.TestgetRegex;
 var
   ReturnValue: IBsonRegex;
-  i : integer;
 begin
-  for i := 1 to 9 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('BSONREGEX');
   ReturnValue := FIBsonIterator.getRegex;
   CheckEqualsString(BsonRegEx.getPattern, ReturnValue.getPattern, 'Pattern of RegEx doesn''t match');
   CheckEqualsString(BsonRegEx.getOptions, ReturnValue.getOptions, 'Options of RegEx doesn''t match');
@@ -1516,8 +1557,7 @@ var
   ReturnValue: TStringArray;
   i : integer;
 begin
-  for i := 1 to 10 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('STRARR');
   ReturnValue := FIBsonIterator.getStringArray;
   for i := low(StrArr) to high(StrArr) do
     CheckEqualsString(StrArr[i], ReturnValue[i], 'UTF8String array element doesn''t match');
@@ -1526,10 +1566,8 @@ end;
 procedure TestIBsonIterator.TestgetTimestamp;
 var
   ReturnValue: IBsonTimestamp;
-  i : integer;
 begin
-  for i := 1 to 11 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('TS');
   ReturnValue := FIBsonIterator.getTimestamp;
   CheckEquals(FTimeStamp.getTime, ReturnValue.getTime, DELTA_DATE, 'Timestamp date field doesn''t match');
   CheckEquals(FTimeStamp.getIncrement, ReturnValue.getIncrement, 'Timestamp increment field doesn''t match');
@@ -1538,12 +1576,12 @@ end;
 procedure TestIBsonIterator.Testkey;
 var
   ReturnValue: UTF8String;
-  i : integer;
 begin
+  FIBsonIterator := b.iterator;
+  FIBsonIterator.next;
   ReturnValue := FIBsonIterator.key;
   CheckEqualsString('STR', ReturnValue, 'Key of first iterator element should be equals to STR');
-  for i := 1 to 11 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('TS');
   ReturnValue := FIBsonIterator.key;    
   CheckEqualsString('TS', ReturnValue, 'Key of last iterator element should be equals to TS');
 end;
@@ -1552,29 +1590,24 @@ procedure TestIBsonIterator.TestKind;
 var
   ReturnValue: TBsonType;
 begin
+  FIBsonIterator := b.iterator;
+  FIBsonIterator.next;
+
   ReturnValue := FIBsonIterator.Kind;
   CheckEquals(integer(bsonSTRING), integer(ReturnValue), 'First element returned by iterator should be bsonSTRING');
   FIBsonIterator.Next;
+  FIBsonIterator.Next;
   ReturnValue := FIBsonIterator.Kind;
   CheckEquals(integer(bsonINT), integer(ReturnValue), 'Second element returned by iterator should be bsonINT');
+  FIBsonIterator.Next;
   FIBsonIterator.Next;
   ReturnValue := FIBsonIterator.Kind;
   CheckEquals(integer(bsonLONG), integer(ReturnValue), 'Third element returned by iterator should be bsonLONG');
 end;
 
 procedure TestIBsonIterator.TestTryToReadPastEnd;
-var
-  ReturnValue: TBsonType;
 begin
-  ReturnValue := FIBsonIterator.Kind;
-  CheckEquals(integer(bsonSTRING), integer(ReturnValue), 'First element returned by iterator should be bsonSTRING');
-  FIBsonIterator.Next;
-  ReturnValue := FIBsonIterator.Kind;
-  CheckEquals(integer(bsonINT), integer(ReturnValue), 'Second element returned by iterator should be bsonINT');
-  FIBsonIterator.Next;
-  ReturnValue := FIBsonIterator.Kind;
-  CheckEquals(integer(bsonLONG), integer(ReturnValue), 'Third element returned by iterator should be bsonLONG');
-
+  FIBsonIterator := b.find('SUBOBJ');
   while FIBsonIterator.Next do;
   // Here we are not past end of the iterator, attempt to read Kind should return on Exception
   try
@@ -1588,10 +1621,8 @@ end;
 procedure TestIBsonIterator.Testsubiterator;
 var
   ReturnValue: IBsonIterator;
-  i : integer;
 begin
-  for i := 1 to 12 do
-    FIBsonIterator.Next;
+  FIBsonIterator := b.find('SUBOBJ');
   ReturnValue := FIBsonIterator.subiterator;
   Check(ReturnValue <> nil, 'FIBsonIterator.subiterator should be different from nil');
   ReturnValue.Next;
@@ -1602,6 +1633,9 @@ procedure TestIBsonIterator.TestValue;
 var
   ReturnValue: Variant;
 begin
+  FIBsonIterator := b.iterator;
+  FIBsonIterator.next;
+
   ReturnValue := FIBsonIterator.Value;
   CheckEqualsString('STRVAL', ReturnValue, 'ReturnValue should be equals to STRVAL');
 end;

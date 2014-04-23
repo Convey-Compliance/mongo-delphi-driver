@@ -26,6 +26,9 @@ type
   PBsonOIDValue = ^TBsonOIDValue;
   TBsonOIDValue = array[0..11] of Byte;
   EMongoFatalError = class(Exception);
+  {$IFDEF VER130}
+  PPAnsiChar = ^PAnsiChar;
+  {$ENDIF}
 
   { A value of TBsonType indicates the type of the data associated
     with a field within a BSON document. }
