@@ -9,6 +9,9 @@ uses
   MongoBsonSerializableClasses,
   {$IFDEF DELPHIXE} System.Generics.Collections, {$ELSE} HashTrie, {$ENDIF} TypInfo;
 
+const
+  STR_ActualType = '_type';
+
 type
   EBsonSerializer = class(Exception);
   TBaseBsonSerializerClass = class of TBaseBsonSerializer;
@@ -16,6 +19,8 @@ type
   private
     FSource: TObject;
     FTarget: IBsonBuffer;
+  protected
+    procedure Serialize_type;
   public
     constructor Create; virtual;
     procedure Serialize(const AName: String); virtual; abstract;
@@ -236,6 +241,11 @@ begin
   inherited Create;
 end;
 
+procedure TBaseBsonSerializer.Serialize_type;
+begin
+  Target.append(STR_ActualType, Source.ClassName);
+end;
+
 { TPrimitivesBsonSerializer }
 
 procedure TPrimitivesBsonSerializer.Serialize(const AName: String);
@@ -304,8 +314,7 @@ begin
       end;
     tkClass : SerializeObject(APropInfo);
     tkVariant : SerializeVariant(APropInfo, APropInfo.Name, Null);
-    tkDynArray :
-      SerializeVariant(nil, APropInfo.Name, GetPropValue(Source, APropInfo));
+    tkDynArray : SerializeVariant(nil, APropInfo.Name, GetPropValue(Source, APropInfo));
   end;
 end;
 
@@ -408,6 +417,7 @@ begin
   try
     PrimitivesSerializer.Source := Source;
     PrimitivesSerializer.Target := Target;
+    Serialize_type; // We will always serialize _type for root object
     PrimitivesSerializer.Serialize('');
   finally
     PrimitivesSerializer.Free;

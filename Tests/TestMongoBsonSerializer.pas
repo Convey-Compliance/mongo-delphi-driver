@@ -175,6 +175,8 @@ begin
     b := FSerializer.Target.finish;
     it := NewBsonIterator(b);
     CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('_type', it.key);
+    CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('ObjectAsStringList', it.key);
     Check(it.Kind = bsonObject, 'Type of iterator value should be bsonObject');
     SubIt := it.subiterator;
@@ -283,6 +285,8 @@ begin
     b := FSerializer.Target.finish;                             // b.display; exit;
     it := NewBsonIterator(b);
     CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('_type', it.key);
+    CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_00_Int', it.key);
     CheckEquals(10, it.value, 'Iterator should be equals to 10');
 
@@ -328,7 +332,9 @@ begin
     CheckEqualsString('The_08_SubObject', it.key);
     Check(it.Kind = bsonOBJECT, 'Type of iterator value should be bsonOBJECT');
     SubIt := it.subiterator;
-    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckTrue(Subit.Next, 'SubIterator should not be at end');
+    CheckEqualsString('_type', Subit.key);
+    CheckTrue(SubIt.Next, 'SubIterator should not be at end');
     CheckEquals(12, SubIt.Value, 'Iterator should be equals to 12');
     Check(not SubIt.next, 'Iterator should be at end');
 
