@@ -21,6 +21,7 @@ type
         string);
     procedure TestCreateSerializer;
     procedure TestSerializeObjectAsStringList_Flat;
+    procedure TestSerializeObjectDeserializeWithDynamicBuilding;
     procedure TestSerializePrimitiveTypes;
   end;
   {$M-}
@@ -202,6 +203,36 @@ begin
     end;
   finally
     FreeAndNil(TestObject1);
+  end;
+end;
+
+function BuildTTestObject(const AClassName : string) : TObject;
+begin
+  Result := TTestObject.Create;
+end;
+
+procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    AObj.The_00_Int := 123;
+    FSerializer.Source := AObj;
+    FSerializer.Target := NewBsonBuffer();
+    FSerializer.Serialize('');
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  FDeserializer.Source := FSerializer.Target.finish.iterator;
+  RegisterBuildableSerializableClass(TTestObject.ClassName, BuildTTestObject);
+  try
+    FDeserializer.Deserialize(TObject(AObj));
+    Check(AObj <> nil, 'Object returned from deserialization must be <> nil');
+    CheckEquals(123, AObj.The_00_Int, 'The_00_Int attribute should be equals to 123');
+  finally
+    UnregisterBuildableSerializableClass(TTestObject.ClassName);
   end;
 end;
 

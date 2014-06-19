@@ -13,6 +13,8 @@ const
   STR_ActualType = '_type';
 
 type
+  TObjectBuilderFunction = function(const AClassName : string) : TObject;
+
   EBsonSerializer = class(Exception);
   TBaseBsonSerializerClass = class of TBaseBsonSerializer;
   TBaseBsonSerializer = class
@@ -59,13 +61,16 @@ type
   {$ENDIF}
   TPrimitivesBsonDeserializer = class(TBaseBsonDeserializer)
   private
-    PropInfos : TPropInfosDictionary;
+    FPropInfos : TPropInfosDictionary;
+    function BuildObject(const _Type: string): TObject;
+    procedure PopulatePropInfos(AObj: TObject);
     procedure DeserializeIterator(var ATarget: TObject);
-    procedure DeserializeObject(p: PPropInfo; var ATarget: TObject);
+    procedure DeserializeObject(p: PPropInfo; ATarget: TObject);
     procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
     procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
     function GetArrayDimension(it: IBsonIterator) : Integer;
   public
+    destructor Destroy; override;
     procedure Deserialize(var ATarget: TObject); override;
   end;
 
@@ -77,10 +82,13 @@ procedure RegisterClassDeserializer(AClass: TClass; ADeserializer: TBaseBsonDese
 procedure UnRegisterClassDeserializer(AClass: TClass; ADeserializer: TBaseBsonDeserializerClass);
 function CreateDeserializer(AClass : TClass): TBaseBsonDeserializer;
 
+procedure RegisterBuildableSerializableClass(const AClassName : string; ABuilderFunction : TObjectBuilderFunction);
+procedure UnregisterBuildableSerializableClass(const AClassName : string);
+
 implementation
 
 uses
-  MongoApi{$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
+  MongoApi, HashTrie {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
 resourcestring
   SObjectHasNotPublishedProperties = 'Object has not published properties. review your logic';
@@ -146,9 +154,25 @@ type
     procedure Deserialize(var ATarget: TObject); override;
   end;
 
+  {$IFDEF DELPHIXE}
+  TBuilderFunctionsDictionary = TDictionary<string, TObjectBuilderFunction>;
+  {$ELSE}
+  TBuilderFunctionsDictionary = class(TStringHashTrie)
+  public
+    function TryGetValue(const key: string; var ABuilderFunction: TObjectBuilderFunction): Boolean;
+  end;
+  {$ENDIF}
+
 var
   Serializers : TClassPairList;
   Deserializers : TClassPairList;
+  BuilderFunctions : TBuilderFunctionsDictionary;
+
+function GetSerializableObjectBuilderFunction(const AClassName : string):
+    TObjectBuilderFunction;
+begin
+  BuilderFunctions.TryGetValue(AClassName, Result);
+end;
 
 {$IFNDEF DELPHIXE}
 constructor TClassPair.Create(AKey : TClass; AValue : TClass);
@@ -433,33 +457,28 @@ begin
   inherited Create;
 end;
 
+destructor TPrimitivesBsonDeserializer.Destroy;
+begin
+  if FPropInfos <> nil then
+    FPropInfos.Free;
+  inherited;
+end;
+
+function TPrimitivesBsonDeserializer.BuildObject(const _Type: string): TObject;
+var
+  BuilderFn : TObjectBuilderFunction;
+begin
+  BuilderFn := GetSerializableObjectBuilderFunction(_Type);
+  if @BuilderFn = nil then
+    raise EBsonDeserializer.CreateFmt('Suitable builder not found for class <%s>', [_Type]);
+  Result := BuilderFn(_Type);
+end;
+
 { TPrimitivesBsonDeserializer }
 
 procedure TPrimitivesBsonDeserializer.Deserialize(var ATarget: TObject);
-var
-  PropList : PPropList;
-  TypeData : PTypeData;
-  i : integer;
 begin
-  TypeData := GetAndCheckTypeData(ATarget.ClassType);
-  PropInfos := TPropInfosDictionary.Create;
-  try
-    GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
-    try
-      GetPropInfos(ATarget.ClassInfo, PropList);
-      for i := 0 to TypeData.PropCount - 1 do
-        {$IFDEF DELPHIXE}
-        PropInfos.Add(PropList[i].Name, PropList[i]);
-        {$ELSE}
-        PropInfos.Add(PropList[i].Name, TObject(PropList[i]));
-        {$ENDIF}
-      DeserializeIterator(ATarget);
-    finally
-      FreeMem(PropList);
-    end;
-  finally
-    PropInfos.Free;
-  end;
+  DeserializeIterator(ATarget);
 end;
 
 procedure TPrimitivesBsonDeserializer.DeserializeIterator(var ATarget: TObject);
@@ -467,10 +486,21 @@ var
   p : PPropInfo;
   po : Pointer;
   v : Variant;
+  (* We need this safe function because if variant Av param represents a zero size array
+     the call to DynArrayFromVariant() will fail rather than assigning nil to Apo parameter *)
+  procedure SafeDynArrayFromVariant(var Apo : Pointer; const Av : Variant; ATypeInfo: Pointer);
+  begin
+    if VarArrayHighBound(Av, 1) - VarArrayLowBound(Av, 1) > 0 then
+      DynArrayFromVariant(Apo, Av, ATypeInfo)
+    else Apo := nil;
+  end;
 begin
   while Source.next do
     begin
-      if not PropInfos.TryGetValue(Source.key, p) then
+      if (ATarget = nil) and (Source.key = STR_ActualType) then
+        ATarget := BuildObject(Source.value);
+      PopulatePropInfos(ATarget);
+      if not FPropInfos.TryGetValue(Source.key, p) then
         continue;
       if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [bsonARRAY])  then
         SetVariantProp(ATarget, p, Source.value)
@@ -480,7 +510,7 @@ begin
             SetEnumProp(ATarget, p, 'True')
           else SetEnumProp(ATarget, p, 'False');
         bsonLONG : SetInt64Prop(ATarget, p, Source.AsInt64);
-        bsonSTRING, bsonSYMBOL : if PropInfos.TryGetValue(Source.key, p) then
+        bsonSTRING, bsonSYMBOL : if FPropInfos.TryGetValue(Source.key, p) then
           case p^.PropType^.Kind of
             tkEnumeration : SetEnumProp(ATarget, p, Source.AsUTF8String);
             tkWString :
@@ -519,14 +549,14 @@ begin
               if DynArrayDim(PDynArrayTypeInfo(p^.PropType^)) = 1 then
               begin
                 DeserializeVariantArray(p, v);
-                DynArrayFromVariant(po, v, p^.PropType^);
+                SafeDynArrayFromVariant(po, v, p^.PropType^);
                 SetDynArrayProp(ATarget, p, po);
               end
               else
               begin
                 DynArrayToVariant(v, po, p^.PropType^);
                 DeserializeVariantArray(p, v);
-                DynArrayFromVariant(po, v, p^.PropType^);
+                SafeDynArrayFromVariant(po, v, p^.PropType^);
                 SetDynArrayProp(ATarget, p, po);
               end;
             end;
@@ -538,18 +568,29 @@ begin
     end;
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; var
-    ATarget: TObject);
+procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; ATarget:
+    TObject);
 var
   Deserializer : TBaseBsonDeserializer;
   Obj : TObject;
+  _Type : string;
 begin
   Obj := GetObjectProp(ATarget, p);
-  Deserializer := CreateDeserializer(Obj.ClassType);
+  Deserializer := CreateDeserializer(p.PropType^.TypeData.ClassType);
   try
     if Source.Kind in [bsonOBJECT, bsonARRAY] then
       Deserializer.Source := Source.subiterator
     else Deserializer.Source := Source; // for bindata we need original BsonIterator to obtain binary handler
+    if Obj = nil then
+      begin
+        if Source.key = STR_ActualType then
+          begin
+            _Type := Source.value;
+            Source.next;
+          end
+          else _Type := p.PropType^.TypeData^.ClassType.ClassName;
+        Obj := BuildObject(_Type);
+      end;
     Deserializer.Deserialize(Obj);
   finally
     Deserializer.Free;
@@ -622,6 +663,32 @@ begin
   begin
     Inc(Result);
     it := it.subiterator;
+  end;
+end;
+
+procedure TPrimitivesBsonDeserializer.PopulatePropInfos(AObj: TObject);
+var
+  PropList : PPropList;
+  TypeData : PTypeData;
+  i : integer;
+begin
+  if FPropInfos <> nil then
+    exit;
+  if AObj = nil then
+    raise EBsonDeserializer.Create('Can''t build PropInfo list of a nil object');
+  TypeData := GetAndCheckTypeData(AObj.ClassType);
+  FPropInfos := TPropInfosDictionary.Create;
+  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
+  try
+    GetPropInfos(AObj.ClassInfo, PropList);
+    for i := 0 to TypeData.PropCount - 1 do
+      {$IFDEF DELPHIXE}
+      FPropInfos.Add(PropList[i].Name, PropList[i]);
+      {$ELSE}
+      FPropInfos.Add(PropList[i].Name, TObject(PropList[i]));
+      {$ENDIF}
+  finally
+    FreeMem(PropList);
   end;
 end;
 
@@ -712,7 +779,21 @@ begin
     AStrings.Add(Source.key + '=' + Source.AsUTF8String);
 end;
 
+procedure RegisterBuildableSerializableClass(const AClassName : string;
+    ABuilderFunction : TObjectBuilderFunction);
+var
+  BuilderFunctionAsPointer : pointer absolute ABuilderFunction;
+begin
+  BuilderFunctions.Add(AClassName, BuilderFunctionAsPointer);
+end;
+
+procedure UnregisterBuildableSerializableClass(const AClassName : string);
+begin
+  BuilderFunctions.Remove(AClassName);
+end;
+
 initialization
+  BuilderFunctions := TBuilderFunctionsDictionary.Create;
   Serializers := TClassPairList.Create;
   Deserializers := TClassPairList.Create;
   RegisterClassSerializer(TObject, TDefaultObjectBsonSerializer);
@@ -734,4 +815,5 @@ finalization
   UnRegisterClassSerializer(TObjectAsStringList, TObjectAsStringListBsonSerializer);
   Deserializers.Free;
   Serializers.Free;
+  BuilderFunctions.Free;
 end.
