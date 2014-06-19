@@ -90,7 +90,15 @@ implementation
 uses
   MongoApi, HashTrie {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
+const
+  SBoolean = 'Boolean';
+  STrue = 'True';
+  STDateTime = 'TDateTime';
+  SFalse = 'False';
+
 resourcestring
+  SSuitableBuilderNotFoundForClass = 'Suitable builder not found for class <%s>';
+  SCanTBuildPropInfoListOfANilObjec = 'Can''t build PropInfo list of a nil object';
   SObjectHasNotPublishedProperties = 'Object has not published properties. review your logic';
   SFailedObtainingListOfPublishedProperties = 'Failed obtaining list of published properties';
   SFailedObtainingTypeDataOfObject = 'Failed obtaining TypeData of object';
@@ -308,15 +316,15 @@ begin
       {$IFDEF DELPHIXE}
       if GetTypeData(TypeInfo(Boolean)) = APropInfo^.PropType^.TypeData then
       {$ELSE}
-      if APropInfo^.PropType^.Name = 'Boolean' then
+      if APropInfo^.PropType^.Name = SBoolean then
       {$ENDIF}
-        Target.append(APropInfo.Name, GetEnumProp(Source, APropInfo) = 'True')
+        Target.append(APropInfo.Name, GetEnumProp(Source, APropInfo) = STrue)
       else Target.append(APropInfo.Name, UTF8String(GetEnumProp(Source, APropInfo)));
     tkFloat :
       {$IFDEF DELPHIXE}
       if GetTypeData(TypeInfo(TDateTime)) = APropInfo^.PropType^.TypeData then
       {$ELSE}
-      if APropInfo^.PropType^.Name = 'TDateTime' then
+      if APropInfo^.PropType^.Name = STDateTime then
       {$ENDIF}
       begin
         ADate := GetFloatProp(Source, APropInfo);
@@ -470,7 +478,7 @@ var
 begin
   BuilderFn := GetSerializableObjectBuilderFunction(_Type);
   if @BuilderFn = nil then
-    raise EBsonDeserializer.CreateFmt('Suitable builder not found for class <%s>', [_Type]);
+    raise EBsonDeserializer.CreateFmt(SSuitableBuilderNotFoundForClass, [_Type]);
   Result := BuilderFn(_Type);
 end;
 
@@ -507,8 +515,8 @@ begin
       else case Source.Kind of
         bsonINT : SetOrdProp(ATarget, p, Source.AsInteger);
         bsonBOOL : if Source.AsBoolean then
-            SetEnumProp(ATarget, p, 'True')
-          else SetEnumProp(ATarget, p, 'False');
+            SetEnumProp(ATarget, p, STrue)
+          else SetEnumProp(ATarget, p, SFalse);
         bsonLONG : SetInt64Prop(ATarget, p, Source.AsInt64);
         bsonSTRING, bsonSYMBOL : if FPropInfos.TryGetValue(Source.key, p) then
           case p^.PropType^.Kind of
@@ -574,6 +582,7 @@ var
   Deserializer : TBaseBsonDeserializer;
   Obj : TObject;
   _Type : string;
+  MustAssignObjectProperty : boolean;
 begin
   Obj := GetObjectProp(ATarget, p);
   Deserializer := CreateDeserializer(p.PropType^.TypeData.ClassType);
@@ -590,8 +599,12 @@ begin
           end
           else _Type := p.PropType^.TypeData^.ClassType.ClassName;
         Obj := BuildObject(_Type);
-      end;
+        MustAssignObjectProperty := True;
+      end
+      else MustAssignObjectProperty := False;
     Deserializer.Deserialize(Obj);
+    if MustAssignObjectProperty then
+      SetObjectProp(ATarget, p, Obj);
   finally
     Deserializer.Free;
   end;
@@ -675,7 +688,7 @@ begin
   if FPropInfos <> nil then
     exit;
   if AObj = nil then
-    raise EBsonDeserializer.Create('Can''t build PropInfo list of a nil object');
+    raise EBsonDeserializer.Create(SCanTBuildPropInfoListOfANilObjec);
   TypeData := GetAndCheckTypeData(AObj.ClassType);
   FPropInfos := TPropInfosDictionary.Create;
   GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
@@ -817,3 +830,4 @@ finalization
   Serializers.Free;
   BuilderFunctions.Free;
 end.
+
