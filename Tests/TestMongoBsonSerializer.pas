@@ -46,6 +46,7 @@ type
 
   TTestObject = class
   private
+    F_a : integer;
     FThe_02_AnsiChar: AnsiChar;
     FThe_00_Int: Integer;
     FThe_01_Int64: Int64;
@@ -100,6 +101,7 @@ type
     property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
     property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
     property The_24_DynIntArrArr: TDynIntArrArr read FThe_24_DynIntArrArr write FThe_24_DynIntArrArr;
+    property _a : integer read F_a write F_a; // this property serves the purpose to test mongo dynamics to return _type first
   end;
 
   TTestObjectWithObjectAsStringList = class
@@ -491,6 +493,9 @@ begin
     CheckEquals(3, SubSubIt.Value, 'Iterator should be equals to 16');
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(4, SubSubIt.Value, 'Iterator should be equals to 22');
+
+    CheckTrue(it.Next, 'Array SubIterator should not be at end');
+    CheckEquals(0, it.Value, 'Iterator should be equals to 0'); // property _a
 
     Check(not it.next, 'Iterator should be at end');
 
