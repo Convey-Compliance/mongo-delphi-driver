@@ -28,12 +28,10 @@ type
   TBaseBsonDeserializer = class
   private
     FSource: IBsonIterator;
-    FTarget: TObject;
   public
     constructor Create; virtual;
-    procedure Deserialize; virtual; abstract;
+    procedure Deserialize(var ATarget: TObject); virtual; abstract;
     property Source: IBsonIterator read FSource write FSource;
-    property Target: TObject read FTarget write FTarget;
   end;
 
   TPrimitivesBsonSerializer = class(TBaseBsonSerializer)
@@ -57,13 +55,13 @@ type
   TPrimitivesBsonDeserializer = class(TBaseBsonDeserializer)
   private
     PropInfos : TPropInfosDictionary;
-    procedure DeserializeIterator;
-    procedure DeserializeObject(p: PPropInfo);
-    procedure DeserializeSet(p: PPropInfo);
+    procedure DeserializeIterator(var ATarget: TObject);
+    procedure DeserializeObject(p: PPropInfo; var ATarget: TObject);
+    procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
     procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
     function GetArrayDimension(it: IBsonIterator) : Integer;
   public
-    procedure Deserialize; override;
+    procedure Deserialize(var ATarget: TObject); override;
   end;
 
 procedure RegisterClassSerializer(AClass : TClass; ASerializer : TBaseBsonSerializerClass);
@@ -125,12 +123,12 @@ type
 
   TStringsBsonDeserializer = class(TBaseBsonDeserializer)
   public
-    procedure Deserialize; override;
+    procedure Deserialize(var ATarget: TObject); override;
   end;
 
   TStreamBsonDeserializer = class(TBaseBsonDeserializer)
   public
-    procedure Deserialize; override;
+    procedure Deserialize(var ATarget: TObject); override;
   end;
 
   TObjectAsStringListBsonSerializer = class(TBaseBsonSerializer)
@@ -140,7 +138,7 @@ type
 
   TObjectAsStringListBsonDeserializer = class(TBaseBsonDeserializer)
   public
-    procedure Deserialize; override;
+    procedure Deserialize(var ATarget: TObject); override;
   end;
 
 var
@@ -427,25 +425,25 @@ end;
 
 { TPrimitivesBsonDeserializer }
 
-procedure TPrimitivesBsonDeserializer.Deserialize;
+procedure TPrimitivesBsonDeserializer.Deserialize(var ATarget: TObject);
 var
   PropList : PPropList;
   TypeData : PTypeData;
   i : integer;
 begin
-  TypeData := GetAndCheckTypeData(Target.ClassType);
+  TypeData := GetAndCheckTypeData(ATarget.ClassType);
   PropInfos := TPropInfosDictionary.Create;
   try
     GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
     try
-      GetPropInfos(Target.ClassInfo, PropList);
+      GetPropInfos(ATarget.ClassInfo, PropList);
       for i := 0 to TypeData.PropCount - 1 do
         {$IFDEF DELPHIXE}
         PropInfos.Add(PropList[i].Name, PropList[i]);
         {$ELSE}
         PropInfos.Add(PropList[i].Name, TObject(PropList[i]));
         {$ENDIF}
-      DeserializeIterator;
+      DeserializeIterator(ATarget);
     finally
       FreeMem(PropList);
     end;
@@ -454,7 +452,7 @@ begin
   end;
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeIterator;
+procedure TPrimitivesBsonDeserializer.DeserializeIterator(var ATarget: TObject);
 var
   p : PPropInfo;
   po : Pointer;
@@ -465,90 +463,91 @@ begin
       if not PropInfos.TryGetValue(Source.key, p) then
         continue;
       if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [bsonARRAY])  then
-        SetVariantProp(Target, p, Source.value)
+        SetVariantProp(ATarget, p, Source.value)
       else case Source.Kind of
-        bsonINT : SetOrdProp(Target, p, Source.AsInteger);
+        bsonINT : SetOrdProp(ATarget, p, Source.AsInteger);
         bsonBOOL : if Source.AsBoolean then
-            SetEnumProp(Target, p, 'True')
-          else SetEnumProp(Target, p, 'False');
-        bsonLONG : SetInt64Prop(Target, p, Source.AsInt64);
+            SetEnumProp(ATarget, p, 'True')
+          else SetEnumProp(ATarget, p, 'False');
+        bsonLONG : SetInt64Prop(ATarget, p, Source.AsInt64);
         bsonSTRING, bsonSYMBOL : if PropInfos.TryGetValue(Source.key, p) then
           case p^.PropType^.Kind of
-            tkEnumeration : SetEnumProp(Target, p, Source.AsUTF8String);
+            tkEnumeration : SetEnumProp(ATarget, p, Source.AsUTF8String);
             tkWString :
             {$IFDEF DELPHIXE}
-            SetWideStrProp(Target, p, WideString(Source.AsUTF8String));
+            SetWideStrProp(ATarget, p, WideString(Source.AsUTF8String));
             {$ELSE}
-            SetWideStrProp(Target, p, UTF8Decode(Source.AsUTF8String));
+            SetWideStrProp(ATarget, p, UTF8Decode(Source.AsUTF8String));
             {$ENDIF}
             {$IFDEF DELPHIXE}
             tkUString,
             {$ENDIF}
-            tkString, tkLString : SetStrProp(Target, p, Source.AsUTF8String);
+            tkString, tkLString : SetStrProp(ATarget, p, Source.AsUTF8String);
             tkChar : if length(Source.AsUTF8String) > 0 then
-              SetOrdProp(Target, p, NativeInt(Source.AsUTF8String[1]));
+              SetOrdProp(ATarget, p, NativeInt(Source.AsUTF8String[1]));
             {$IFDEF DELPHIXE}
             tkWChar : if length(Source.value) > 0 then
-              SetOrdProp(Target, p, NativeInt(string(Source.value)[1]));
+              SetOrdProp(ATarget, p, NativeInt(string(Source.value)[1]));
             {$ELSE}
             tkWChar : if length(Source.value) > 0 then
-              SetOrdProp(Target, p, NativeInt(UTF8Decode(Source.value)[1]));
+              SetOrdProp(ATarget, p, NativeInt(UTF8Decode(Source.value)[1]));
             {$ENDIF}
           end;
-        bsonDOUBLE : SetFloatProp (Target, p, Source.AsDouble);
-        bsonDATE : SetFloatProp (Target, p, Source.AsDateTime);
+        bsonDOUBLE : SetFloatProp (ATarget, p, Source.AsDouble);
+        bsonDATE : SetFloatProp (ATarget, p, Source.AsDateTime);
         bsonARRAY : case p^.PropType^.Kind of
-            tkSet : DeserializeSet(p);
+            tkSet : DeserializeSet(p, ATarget);
             tkVariant :
             begin
-              v := GetVariantProp(Target, p);
+              v := GetVariantProp(ATarget, p);
               DeserializeVariantArray(p, v);
-              SetVariantProp(Target, p, v);
+              SetVariantProp(ATarget, p, v);
             end;
             tkDynArray :
             begin
-              po := GetDynArrayProp(Target, p^.Name);
+              po := GetDynArrayProp(ATarget, p^.Name);
               if DynArrayDim(PDynArrayTypeInfo(p^.PropType^)) = 1 then
               begin
                 DeserializeVariantArray(p, v);
                 DynArrayFromVariant(po, v, p^.PropType^);
-                SetDynArrayProp(Target, p, po);
+                SetDynArrayProp(ATarget, p, po);
               end
               else
               begin
                 DynArrayToVariant(v, po, p^.PropType^);
                 DeserializeVariantArray(p, v);
                 DynArrayFromVariant(po, v, p^.PropType^);
-                SetDynArrayProp(Target, p, po);
+                SetDynArrayProp(ATarget, p, po);
               end;
             end;
-            tkClass : DeserializeObject(p);
+            tkClass : DeserializeObject(p, ATarget);
           end;
         bsonOBJECT, bsonBINDATA : if p^.PropType^.Kind = tkClass then
-          DeserializeObject(p);
+          DeserializeObject(p, ATarget);
       end;
     end;
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo);
+procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; var
+    ATarget: TObject);
 var
   Deserializer : TBaseBsonDeserializer;
   Obj : TObject;
 begin
-  Obj := GetObjectProp(Target, p);
+  Obj := GetObjectProp(ATarget, p);
   Deserializer := CreateDeserializer(Obj.ClassType);
   try
     if Source.Kind in [bsonOBJECT, bsonARRAY] then
       Deserializer.Source := Source.subiterator
     else Deserializer.Source := Source; // for bindata we need original BsonIterator to obtain binary handler
-    Deserializer.Target := Obj;
-    Deserializer.Deserialize;
+    Deserializer.Deserialize(Obj);
   finally
     Deserializer.Free;
   end;
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeSet(p: PPropInfo);
+procedure TPrimitivesBsonDeserializer.DeserializeSet(p: PPropInfo; var ATarget:
+    TObject);
 var
   subIt : IBsonIterator;
   setValue : string;
@@ -561,7 +560,7 @@ begin
   if setValue[length(setValue)] = ',' then
     setValue[length(setValue)] := ']'
   else setValue := setValue + ']';
-  SetSetProp(Target, p, setValue);
+  SetSetProp(ATarget, p, setValue);
 end;
 
 procedure TPrimitivesBsonDeserializer.DeserializeVariantArray(p: PPropInfo; var v: Variant);
@@ -618,11 +617,11 @@ end;
 
 { TStringsBsonDeserializer }
 
-procedure TStringsBsonDeserializer.Deserialize;
+procedure TStringsBsonDeserializer.Deserialize(var ATarget: TObject);
 var
   AStrings : TStrings;
 begin
-  AStrings := Target as TStrings;
+  AStrings := ATarget as TStrings;
   while Source.next do
     AStrings.Add(Source.AsUTF8String);
 end;
@@ -663,13 +662,13 @@ end;
 
 { TStreamBsonDeserializer }
 
-procedure TStreamBsonDeserializer.Deserialize;
+procedure TStreamBsonDeserializer.Deserialize(var ATarget: TObject);
 var
   binData : IBsonBinary;
   Stream : TStream;
 begin
   binData := Source.getBinary;
-  Stream := Target as TStream;
+  Stream := ATarget as TStream;
   Stream.Size := binData.Len;
   Stream.Position := 0;
   if binData.Len > 0 then
@@ -694,11 +693,11 @@ end;
 
 { TObjectAsStringListBsonDeserializer }
 
-procedure TObjectAsStringListBsonDeserializer.Deserialize;
+procedure TObjectAsStringListBsonDeserializer.Deserialize(var ATarget: TObject);
 var
   AStrings : TStrings;
 begin
-  AStrings := Target as TStrings;
+  AStrings := ATarget as TStrings;
   while Source.next do
     AStrings.Add(Source.key + '=' + Source.AsUTF8String);
 end;

@@ -191,8 +191,7 @@ begin
     TestObject2 := TTestObjectWithObjectAsStringList.Create;
     try
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Target := TestObject2;
-      FDeserializer.Deserialize;
+      FDeserializer.Deserialize(TObject(TestObject2));
 
       CheckEquals('Name1=Value1', TestObject2.ObjectAsStringList[0]);
       CheckEquals('Name5=Value5', TestObject2.ObjectAsStringList[4]);
@@ -467,8 +466,7 @@ begin
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Target := Obj2;
-      FDeserializer.Deserialize;
+      FDeserializer.Deserialize(TObject(Obj2));
 
       CheckEquals(10, obj2.The_00_Int, 'Value of The_00_Int doesn''t match');
       CheckEquals(11, obj2.The_01_Int64, 'Value of The_01_Int64 doesn''t match');
