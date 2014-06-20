@@ -24,7 +24,7 @@ type
   private
     FPropList : PPropList;
   public
-    constructor Create(APropList : PPropList);
+    constructor Create(APropList : PPropList); {$IFNDEF DELPHIXE} reintroduce; {$ENDIF}
     destructor Destroy; override;
   {$IFNDEF DELPHIXE}
     function TryGetValue(const key: string; var APropInfo: PPropInfo): Boolean;
