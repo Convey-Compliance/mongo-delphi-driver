@@ -21,6 +21,9 @@ type
         string);
     procedure TestCreateSerializer;
     procedure TestSerializeObjectAsStringList_Flat;
+    procedure TestSerializeObjectDeserializeWithDynamicBuilding;
+    procedure TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
+    procedure TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
     procedure TestSerializePrimitiveTypes;
   end;
   {$M-}
@@ -45,6 +48,7 @@ type
 
   TTestObject = class
   private
+    F_a : integer;
     FThe_02_AnsiChar: AnsiChar;
     FThe_00_Int: Integer;
     FThe_01_Int64: Int64;
@@ -99,6 +103,7 @@ type
     property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
     property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
     property The_24_DynIntArrArr: TDynIntArrArr read FThe_24_DynIntArrArr write FThe_24_DynIntArrArr;
+    property _a : integer read F_a write F_a; // this property serves the purpose to test mongo dynamics to return _type first
   end;
 
   TTestObjectWithObjectAsStringList = class
@@ -175,6 +180,8 @@ begin
     b := FSerializer.Target.finish;
     it := NewBsonIterator(b);
     CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('_type', it.key);
+    CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('ObjectAsStringList', it.key);
     Check(it.Kind = bsonObject, 'Type of iterator value should be bsonObject');
     SubIt := it.subiterator;
@@ -191,8 +198,7 @@ begin
     TestObject2 := TTestObjectWithObjectAsStringList.Create;
     try
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Target := TestObject2;
-      FDeserializer.Deserialize;
+      FDeserializer.Deserialize(TObject(TestObject2));
 
       CheckEquals('Name1=Value1', TestObject2.ObjectAsStringList[0]);
       CheckEquals('Name5=Value5', TestObject2.ObjectAsStringList[4]);
@@ -201,6 +207,97 @@ begin
     end;
   finally
     FreeAndNil(TestObject1);
+  end;
+end;
+
+function BuildTTestObject(const AClassName : string) : TObject;
+begin
+  Result := TTestObject.Create;
+end;
+
+procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    AObj.The_00_Int := 123;
+    FSerializer.Source := AObj;
+    FSerializer.Target := NewBsonBuffer();
+    FSerializer.Serialize('');
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  FDeserializer.Source := FSerializer.Target.finish.iterator;
+  RegisterBuildableSerializableClass(TTestObject.ClassName, BuildTTestObject);
+  try
+    FDeserializer.Deserialize(TObject(AObj));
+    Check(AObj <> nil, 'Object returned from deserialization must be <> nil');
+    CheckEquals(123, AObj.The_00_Int, 'The_00_Int attribute should be equals to 123');
+  finally
+    UnregisterBuildableSerializableClass(TTestObject.ClassName);
+  end;
+end;
+
+function BuildTSubObject(const AClassName : string) : TObject;
+begin
+  Result := TSubObject.Create;
+end;
+
+procedure
+    TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    AObj.The_00_Int := 123;
+    FSerializer.Source := AObj;
+    FSerializer.Target := NewBsonBuffer();
+    FSerializer.Serialize('');
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  FDeserializer.Source := FSerializer.Target.finish.iterator;
+  try
+    FDeserializer.Deserialize(TObject(AObj));
+    Fail('Should have raised exception that it cound not find suitable builder for class TTestObject');
+  except
+    on E : Exception do CheckEqualsString('Suitable builder not found for class <TTestObject>', E.Message);
+  end;
+end;
+
+procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    FSerializer.Source := AObj;
+    FSerializer.Target := NewBsonBuffer();
+    AObj.The_08_SubObject.TheInt := 123;
+    FSerializer.Serialize('');
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  AObj := TTestObject.Create;
+  try
+    AObj.The_08_SubObject.Free;
+    AObj.The_08_SubObject := nil;
+    FDeserializer.Source := FSerializer.Target.finish.iterator;
+    RegisterBuildableSerializableClass(TSubObject.ClassName, BuildTSubObject);
+    try
+      FDeserializer.Deserialize(TObject(AObj));
+      Check(AObj.The_08_SubObject <> nil, 'AObj.The_08_SubObject must be <> nil after deserialization');
+      CheckEquals(123, AObj.The_08_SubObject.TheInt, 'The_00_Int attribute should be equals to 123');
+    finally
+      UnregisterBuildableSerializableClass(TSubObject.ClassName);
+    end;
+  finally
+    AObj.Free;
   end;
 end;
 
@@ -284,6 +381,8 @@ begin
     b := FSerializer.Target.finish;                             // b.display; exit;
     it := NewBsonIterator(b);
     CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('_type', it.key);
+    CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_00_Int', it.key);
     CheckEquals(10, it.value, 'Iterator should be equals to 10');
 
@@ -329,7 +428,9 @@ begin
     CheckEqualsString('The_08_SubObject', it.key);
     Check(it.Kind = bsonOBJECT, 'Type of iterator value should be bsonOBJECT');
     SubIt := it.subiterator;
-    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckTrue(Subit.Next, 'SubIterator should not be at end');
+    CheckEqualsString('_type', Subit.key);
+    CheckTrue(SubIt.Next, 'SubIterator should not be at end');
     CheckEquals(12, SubIt.Value, 'Iterator should be equals to 12');
     Check(not SubIt.next, 'Iterator should be at end');
 
@@ -456,6 +557,9 @@ begin
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(4, SubSubIt.Value, 'Iterator should be equals to 22');
 
+    CheckTrue(it.Next, 'Array SubIterator should not be at end');
+    CheckEquals(0, it.Value, 'Iterator should be equals to 0'); // property _a
+
     Check(not it.next, 'Iterator should be at end');
 
     Obj2 := TTestObject.Create;
@@ -467,8 +571,7 @@ begin
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Target := Obj2;
-      FDeserializer.Deserialize;
+      FDeserializer.Deserialize(TObject(Obj2));
 
       CheckEquals(10, obj2.The_00_Int, 'Value of The_00_Int doesn''t match');
       CheckEquals(11, obj2.The_01_Int64, 'Value of The_01_Int64 doesn''t match');
