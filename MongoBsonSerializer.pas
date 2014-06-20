@@ -15,9 +15,29 @@ const
 type
   TObjectBuilderFunction = function(const AClassName : string) : TObject;
 
+  {$IFDEF DELPHIXE}
+  TPropInfosDictionary = class(TDictionary<string, PPropInfo>)
+  {$ELSE}
+  TPropInfosDictionary = class(TStringHashTrie)
+  {$ENDIF}
+  public
+    FPropList : PPropList;
+    constructor Create(APropList : PPropList);
+    destructor Destroy; override;
+  {$IFNDEF DELPHIXE}
+    function TryGetValue(const key: string; var APropInfo: PPropInfo): Boolean;
+  {$ENDIF}
+  end;
+
+  TBaseBsonSerialization = class
+  protected
+    FPropInfos: TPropInfosDictionary;
+    procedure InitializePropInfos(AObj: TObject);
+  end;
+
   EBsonSerializer = class(Exception);
   TBaseBsonSerializerClass = class of TBaseBsonSerializer;
-  TBaseBsonSerializer = class
+  TBaseBsonSerializer = class(TBaseBsonSerialization)
   private
     FSource: TObject;
     FTarget: IBsonBuffer;
@@ -32,7 +52,7 @@ type
 
   EBsonDeserializer = class(Exception);
   TBaseBsonDeserializerClass = class of TBaseBsonDeserializer;
-  TBaseBsonDeserializer = class
+  TBaseBsonDeserializer = class(TBaseBsonSerialization)
   private
     FSource: IBsonIterator;
   public
@@ -51,20 +71,9 @@ type
     procedure Serialize(const AName: String); override;
   end;
 
-  {$IFDEF DELPHIXE}
-  TPropInfosDictionary = TDictionary<string, PPropInfo>;
-  {$ELSE}
-  TPropInfosDictionary = class(TStringHashTrie)
-  public
-    function TryGetValue(const key: string; var APropInfo: PPropInfo): Boolean;
-  end;
-  {$ENDIF}
-
   TPrimitivesBsonDeserializer = class(TBaseBsonDeserializer)
   private
-    FPropInfos : TPropInfosDictionary;
     function BuildObject(const _Type: string): TObject;
-    procedure InitializePropInfos(AObj: TObject);
     procedure DeserializeIterator(var ATarget: TObject);
     procedure DeserializeObject(p: PPropInfo; ATarget: TObject);
     procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
@@ -102,7 +111,6 @@ resourcestring
   SSuitableBuilderNotFoundForClass = 'Suitable builder not found for class <%s>';
   SCanTBuildPropInfoListOfANilObjec = 'Can''t build PropInfo list of a nil object';
   SObjectHasNotPublishedProperties = 'Object has not published properties. review your logic';
-  SFailedObtainingListOfPublishedProperties = 'Failed obtaining list of published properties';
   SFailedObtainingTypeDataOfObject = 'Failed obtaining TypeData of object';
   SCouldNotFindClass = 'Could not find target for class %s';
 
@@ -324,20 +332,12 @@ end;
 procedure TPrimitivesBsonSerializer.Serialize(const AName: String);
 var
   TypeData : PTypeData;
-  PropList : PPropList;
   i : integer;
 begin
   TypeData := GetAndCheckTypeData(Source.ClassType);
-  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
-  try
-    GetPropInfos(Source.ClassInfo, PropList);
-    if PropList = nil then
-      raise EBsonSerializer.Create(SFailedObtainingListOfPublishedProperties);
-    for i := 0 to TypeData.PropCount - 1 do
-      SerializePropInfo(PropList[i]);
-  finally
-    FreeMem(PropList);
-  end;
+  InitializePropInfos(Source);
+  for i := 0 to TypeData.PropCount - 1 do
+    SerializePropInfo(FPropInfos.FPropList[i]);
 end;
 
 procedure TPrimitivesBsonSerializer.SerializePropInfo(APropInfo: PPropInfo);
@@ -722,41 +722,6 @@ begin
   end;
 end;
 
-procedure TPrimitivesBsonDeserializer.InitializePropInfos(AObj: TObject);
-var
-  PropList : PPropList;
-  TypeData : PTypeData;
-  i : integer;
-begin
-  if FPropInfos <> nil then
-    exit;
-  if AObj = nil then
-    raise EBsonDeserializer.Create(SCanTBuildPropInfoListOfANilObjec);
-  if GetPropInfosDictionaryDictionary.TryGetValue(AObj.ClassType, FPropInfos) then
-    exit;
-  TypeData := GetAndCheckTypeData(AObj.ClassType);
-  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
-  try
-    FPropInfos := TPropInfosDictionary.Create;
-    try
-      GetPropInfos(AObj.ClassInfo, PropList);
-      for i := 0 to TypeData.PropCount - 1 do
-        {$IFDEF DELPHIXE}
-        FPropInfos.Add(PropList[i].Name, PropList[i]);
-        {$ELSE}
-        FPropInfos.Add(PropList[i].Name, TObject(PropList[i]));
-        {$ENDIF}
-      GetPropInfosDictionaryDictionary.Add({$IFNDEF DELPHIXE}integer({$ENDIF}AObj.ClassType{$IFNDEF DELPHIXE}){$ENDIF}, FPropInfos);
-    except
-      FPropInfos.Free;
-      FPropInfos := nil;
-      raise;
-    end;
-  finally
-    FreeMem(PropList);
-  end;
-end;
-
 { TStringsBsonDeserializer }
 
 procedure TStringsBsonDeserializer.Deserialize(var ATarget: TObject);
@@ -769,6 +734,18 @@ begin
 end;
 
 { TPropInfosDictionary }
+
+constructor TPropInfosDictionary.Create(APropList: PPropList);
+begin
+  inherited Create;
+  FPropList := APropList;
+end;
+
+destructor TPropInfosDictionary.Destroy;
+begin
+  FreeMem(FPropList);
+  inherited;
+end;
 
 {$IFNDEF DELPHIXE}
 function TPropInfosDictionary.TryGetValue(const key: string; var APropInfo:
@@ -862,6 +839,9 @@ begin
 end;
 
 {$IFNDEF DELPHIXE}
+
+{ TBuilderFunctionsDictionary }
+
 function TBuilderFunctionsDictionary.TryGetValue(const key: string; var
     ABuilderFunction: TObjectBuilderFunction): Boolean;
 var
@@ -869,6 +849,8 @@ var
 begin
   Result := Find(key, ABuilderFunctionAsObject);
 end;
+
+{ TClassPropInfoDictionaryDictionary }
 
 function TClassPropInfoDictionaryDictionary.TryGetValue(key: TClass; var
     APropInfoDictionary: TPropInfosDictionary): Boolean;
@@ -892,6 +874,43 @@ begin
       {$ENDIF}
       TClassPropInfoDictionaryDictionary(PropInfosDictionaryCacheTrackingList[i]).Free;
     end;
+end;
+
+procedure TBaseBsonSerialization.InitializePropInfos(AObj: TObject);
+var
+  PropList : PPropList;
+  TypeData : PTypeData;
+  i : integer;
+begin
+  if FPropInfos <> nil then
+    exit;
+  if AObj = nil then
+    raise EBsonDeserializer.Create(SCanTBuildPropInfoListOfANilObjec);
+  if GetPropInfosDictionaryDictionary.TryGetValue(AObj.ClassType, FPropInfos) then
+    exit;
+  TypeData := GetAndCheckTypeData(AObj.ClassType);
+  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
+  try
+    FPropInfos := TPropInfosDictionary.Create(PropList); // FPropInfos takes ownership of PropList
+    try
+      GetPropInfos(AObj.ClassInfo, PropList);
+      for i := 0 to TypeData.PropCount - 1 do
+        {$IFDEF DELPHIXE}
+        FPropInfos.Add(PropList[i].Name, PropList[i]);
+        {$ELSE}
+        FPropInfos.Add(PropList[i].Name, TObject(PropList[i]));
+        {$ENDIF}
+      GetPropInfosDictionaryDictionary.Add({$IFNDEF DELPHIXE}integer({$ENDIF}AObj.ClassType{$IFNDEF DELPHIXE}){$ENDIF}, FPropInfos);
+    except
+      FPropInfos.Free;
+      raise;
+    end;
+  except
+    if FPropInfos = nil then
+      FreeMem(PropList);
+    FPropInfos := nil;
+    raise;
+  end;
 end;
 
 initialization
