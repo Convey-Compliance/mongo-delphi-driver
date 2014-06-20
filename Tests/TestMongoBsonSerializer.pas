@@ -168,14 +168,13 @@ begin
   FSerializer.Target := NewBsonBuffer();
   TestObject1 := TTestObjectWithObjectAsStringList.Create();
   try
-    FSerializer.Source := TestObject1;
     TestObject1.ObjectAsStringList.Add('Name1=Value1');
     TestObject1.ObjectAsStringList.Add('Name2=Value2');
     TestObject1.ObjectAsStringList.Add('Name3=Value3');
     TestObject1.ObjectAsStringList.Add('Name4=Value4');
     TestObject1.ObjectAsStringList.Add('Name5=Value5');
 
-    FSerializer.Serialize('');
+    FSerializer.Serialize('', TestObject1);
 
     b := FSerializer.Target.finish;
     it := NewBsonIterator(b);
@@ -222,9 +221,8 @@ begin
   AObj := TTestObject.Create;
   try
     AObj.The_00_Int := 123;
-    FSerializer.Source := AObj;
     FSerializer.Target := NewBsonBuffer();
-    FSerializer.Serialize('');
+    FSerializer.Serialize('', AObj);
   finally
     AObj.Free;
   end;
@@ -253,9 +251,8 @@ begin
   AObj := TTestObject.Create;
   try
     AObj.The_00_Int := 123;
-    FSerializer.Source := AObj;
     FSerializer.Target := NewBsonBuffer();
-    FSerializer.Serialize('');
+    FSerializer.Serialize('', AObj);
   finally
     AObj.Free;
   end;
@@ -275,10 +272,9 @@ var
 begin
   AObj := TTestObject.Create;
   try
-    FSerializer.Source := AObj;
     FSerializer.Target := NewBsonBuffer();
     AObj.The_08_SubObject.TheInt := 123;
-    FSerializer.Serialize('');
+    FSerializer.Serialize('', AObj);
   finally
     AObj.Free;
   end;
@@ -319,7 +315,6 @@ begin
   FSerializer.Target := NewBsonBuffer();
   Obj := TTestObject.Create;
   try
-    FSerializer.Source := Obj;
     Obj.The_00_Int := 10;
     Obj.The_01_Int64 := 11;
     Obj.The_02_AnsiChar := 'B';
@@ -376,9 +371,9 @@ begin
     dynIntArrArr[1, 1] := 4;
     Obj.The_24_DynIntArrArr := dynIntArrArr;
 
-    FSerializer.Serialize('');
+    FSerializer.Serialize('', Obj);
 
-    b := FSerializer.Target.finish;                             // b.display; exit;
+    b := FSerializer.Target.finish;
     it := NewBsonIterator(b);
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('_type', it.key);
