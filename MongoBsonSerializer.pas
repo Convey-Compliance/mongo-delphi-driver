@@ -168,8 +168,7 @@ type
   {$ELSE}
   TBuilderFunctionsDictionary = class(TStringHashTrie)
   public
-    function TryGetValue(const key: string; var ABuilderFunction:
-        TObjectBuilderFunction): Boolean;
+    function TryGetValue(const key: string; var ABuilderFunction: TObjectBuilderFunction): Boolean;
   end;
   {$ENDIF}
 
