@@ -64,17 +64,18 @@ type
   private
     FPropInfos : TPropInfosDictionary;
     function BuildObject(const _Type: string): TObject;
-    procedure PopulatePropInfos(AObj: TObject);
+    procedure InitializePropInfos(AObj: TObject);
     procedure DeserializeIterator(var ATarget: TObject);
     procedure DeserializeObject(p: PPropInfo; ATarget: TObject);
     procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
     procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
     function GetArrayDimension(it: IBsonIterator) : Integer;
   public
-    destructor Destroy; override;
     procedure Deserialize(var ATarget: TObject); override;
   end;
 
+{ The following registration functions are NOT threadsafe with their corresponding lookup functions
+  They are meant to be used during application initialization only }
 procedure RegisterClassSerializer(AClass : TClass; ASerializer : TBaseBsonSerializerClass);
 procedure UnRegisterClassSerializer(AClass: TClass; ASerializer : TBaseBsonSerializerClass);
 function CreateSerializer(AClass : TClass): TBaseBsonSerializer;
@@ -89,7 +90,7 @@ procedure UnregisterBuildableSerializableClass(const AClassName : string);
 implementation
 
 uses
-  MongoApi {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
+  SyncObjs, MongoApi {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
 const
   SBoolean = 'Boolean';
@@ -125,6 +126,15 @@ type
     function GetItem(Index : integer) : TClassPair;
   public
     property Items[Index : integer] : TClassPair read GetItem; default;
+  end;
+  {$ENDIF}
+
+  {$IFDEF DELPHIXE}
+  TClassPropInfoDictionaryDictionary = TDictionary<TClass, TPropInfosDictionary>;
+  {$ELSE}
+  TClassPropInfoDictionaryDictionary = class(TIntegerHashTrie)
+  public
+    function TryGetValue(key: TClass; var APropInfoDictionary: TPropInfosDictionary): Boolean;
   end;
   {$ENDIF}
 
@@ -176,6 +186,36 @@ var
   Serializers : TClassPairList;
   Deserializers : TClassPairList;
   BuilderFunctions : TBuilderFunctionsDictionary;
+  PropInfosDictionaryCacheTrackingListLock : TSynchroObject;
+  PropInfosDictionaryCacheTrackingList : TList;
+
+threadvar
+  // To reduce contention maintaining cache of PropInfosDictionary we will keep one cache per thread
+  PropInfosDictionaryDictionary : TClassPropInfoDictionaryDictionary;
+
+function GetPropInfosDictionaryDictionary : TClassPropInfoDictionaryDictionary;
+begin
+  if PropInfosDictionaryDictionary = nil then
+    begin
+      PropInfosDictionaryDictionary := TClassPropInfoDictionaryDictionary.Create;
+      try
+        {$IFNDEF DELPHIXE}
+        PropInfosDictionaryDictionary.AutoFreeObjects := True;
+        {$ENDIF}
+        PropInfosDictionaryCacheTrackingListLock.Acquire;
+        try
+          PropInfosDictionaryCacheTrackingList.Add(PropInfosDictionaryDictionary);
+        finally
+          PropInfosDictionaryCacheTrackingListLock.Release;
+        end;
+      except
+        PropInfosDictionaryDictionary.Free;
+        PropInfosDictionaryDictionary := nil;
+        raise;
+      end;
+    end;
+  Result := PropInfosDictionaryDictionary;
+end;
 
 function GetSerializableObjectBuilderFunction(const AClassName : string):
     TObjectBuilderFunction;
@@ -466,13 +506,6 @@ begin
   inherited Create;
 end;
 
-destructor TPrimitivesBsonDeserializer.Destroy;
-begin
-  if FPropInfos <> nil then
-    FPropInfos.Free;
-  inherited;
-end;
-
 function TPrimitivesBsonDeserializer.BuildObject(const _Type: string): TObject;
 var
   BuilderFn : TObjectBuilderFunction;
@@ -508,7 +541,7 @@ begin
     begin
       if (ATarget = nil) and (Source.key = STR_ActualType) then
         ATarget := BuildObject(Source.value);
-      PopulatePropInfos(ATarget);
+      InitializePropInfos(ATarget);
       if not FPropInfos.TryGetValue(Source.key, p) then
         continue;
       if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [bsonARRAY])  then
@@ -689,7 +722,7 @@ begin
   end;
 end;
 
-procedure TPrimitivesBsonDeserializer.PopulatePropInfos(AObj: TObject);
+procedure TPrimitivesBsonDeserializer.InitializePropInfos(AObj: TObject);
 var
   PropList : PPropList;
   TypeData : PTypeData;
@@ -699,17 +732,26 @@ begin
     exit;
   if AObj = nil then
     raise EBsonDeserializer.Create(SCanTBuildPropInfoListOfANilObjec);
+  if GetPropInfosDictionaryDictionary.TryGetValue(AObj.ClassType, FPropInfos) then
+    exit;
   TypeData := GetAndCheckTypeData(AObj.ClassType);
-  FPropInfos := TPropInfosDictionary.Create;
   GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
   try
-    GetPropInfos(AObj.ClassInfo, PropList);
-    for i := 0 to TypeData.PropCount - 1 do
-      {$IFDEF DELPHIXE}
-      FPropInfos.Add(PropList[i].Name, PropList[i]);
-      {$ELSE}
-      FPropInfos.Add(PropList[i].Name, TObject(PropList[i]));
-      {$ENDIF}
+    FPropInfos := TPropInfosDictionary.Create;
+    try
+      GetPropInfos(AObj.ClassInfo, PropList);
+      for i := 0 to TypeData.PropCount - 1 do
+        {$IFDEF DELPHIXE}
+        FPropInfos.Add(PropList[i].Name, PropList[i]);
+        {$ELSE}
+        FPropInfos.Add(PropList[i].Name, TObject(PropList[i]));
+        {$ENDIF}
+      GetPropInfosDictionaryDictionary.Add({$IFNDEF DELPHIXE}integer({$ENDIF}AObj.ClassType{$IFNDEF DELPHIXE}){$ENDIF}, FPropInfos);
+    except
+      FPropInfos.Free;
+      FPropInfos := nil;
+      raise;
+    end;
   finally
     FreeMem(PropList);
   end;
@@ -827,9 +869,34 @@ var
 begin
   Result := Find(key, ABuilderFunctionAsObject);
 end;
+
+function TClassPropInfoDictionaryDictionary.TryGetValue(key: TClass; var
+    APropInfoDictionary: TPropInfosDictionary): Boolean;
+begin
+  Result := Find(integer(key), TObject(APropInfoDictionary));
+end;
 {$ENDIF}
 
+procedure DestroyPropInfosDictionaryCache;
+var
+  i : integer;
+  {$IFDEF DELPHIXE}
+  PropInfosDictionary : TPropInfosDictionary;
+  {$ENDIF}
+begin
+  for i := 0 to PropInfosDictionaryCacheTrackingList.Count - 1 do
+    begin
+      {$IFDEF DELPHIXE}
+      for PropInfosDictionary in TClassPropInfoDictionaryDictionary(PropInfosDictionaryCacheTrackingList[i]).Values do
+        PropInfosDictionary.Free;
+      {$ENDIF}
+      TClassPropInfoDictionaryDictionary(PropInfosDictionaryCacheTrackingList[i]).Free;
+    end;
+end;
+
 initialization
+  PropInfosDictionaryCacheTrackingListLock := TCriticalSection.Create;
+  PropInfosDictionaryCacheTrackingList := TList.Create;
   BuilderFunctions := TBuilderFunctionsDictionary.Create;
   Serializers := TClassPairList.Create;
   Deserializers := TClassPairList.Create;
@@ -842,6 +909,7 @@ initialization
   RegisterClassDeserializer(TStream, TStreamBsonDeserializer);
   RegisterClassDeserializer(TObjectAsStringList, TObjectAsStringListBsonDeserializer);
 finalization
+  DestroyPropInfosDictionaryCache;
   UnRegisterClassDeserializer(TStream, TStreamBsonDeserializer);
   UnRegisterClassDeserializer(TObject, TPrimitivesBsonDeserializer);
   UnRegisterClassDeserializer(TStrings, TStringsBsonDeserializer);
@@ -853,5 +921,7 @@ finalization
   Deserializers.Free;
   Serializers.Free;
   BuilderFunctions.Free;
+  PropInfosDictionaryCacheTrackingList.Free;
+  PropInfosDictionaryCacheTrackingListLock.Free;
 end.
 
