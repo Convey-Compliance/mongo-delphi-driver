@@ -22,6 +22,7 @@ type
     procedure TestCreateSerializer;
     procedure TestSerializeObjectAsStringList_Flat;
     procedure TestSerializeObjectDeserializeWithDynamicBuilding;
+    procedure TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
     procedure TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
     procedure TestSerializePrimitiveTypes;
   end;
@@ -242,6 +243,30 @@ end;
 function BuildTSubObject(const AClassName : string) : TObject;
 begin
   Result := TSubObject.Create;
+end;
+
+procedure
+    TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    AObj.The_00_Int := 123;
+    FSerializer.Source := AObj;
+    FSerializer.Target := NewBsonBuffer();
+    FSerializer.Serialize('');
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  FDeserializer.Source := FSerializer.Target.finish.iterator;
+  try
+    FDeserializer.Deserialize(TObject(AObj));
+    Fail('Should have raised exception that it cound not find suitable builder for class TTestObject');
+  except
+    on E : Exception do CheckEqualsString('Suitable builder not found for class <TTestObject>', E.Message);
+  end;
 end;
 
 procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
