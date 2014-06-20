@@ -71,7 +71,7 @@ type
   private
     function BuildObject(const _Type: string; AContext : Pointer): TObject;
     procedure DeserializeIterator(var ATarget: TObject; AContext : Pointer);
-    procedure DeserializeObject(p: PPropInfo; ATarget, AContext : Pointer);
+    procedure DeserializeObject(p: PPropInfo; ATarget: TObject; AContext: Pointer);
     procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
     procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
     function GetArrayDimension(it: IBsonIterator) : Integer;
@@ -648,8 +648,8 @@ begin
     end;
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; ATarget,
-    AContext : Pointer);
+procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; ATarget: TObject; AContext:
+    Pointer);
 var
   Deserializer : TBaseBsonDeserializer;
   Obj : TObject;
