@@ -52,8 +52,7 @@ type
     FSource: IBsonIterator;
   public
     constructor Create; virtual;
-    procedure Deserialize(var ATarget: TObject; AContext: Pointer); virtual;
-        abstract;
+    procedure Deserialize(var ATarget: TObject; AContext: Pointer); virtual; abstract;
     property Source: IBsonIterator read FSource write FSource;
   end;
 
