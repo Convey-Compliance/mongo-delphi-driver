@@ -315,6 +315,45 @@ begin
     raise EBsonDeserializer.Create(SObjectHasNotPublishedProperties);
 end;
 
+{ TBaseBsonSerialization }
+
+procedure TBaseBsonSerialization.InitializePropInfos(AObj: TObject);
+var
+  PropList : PPropList;
+  TypeData : PTypeData;
+  i : integer;
+begin
+  if FPropInfos <> nil then
+    exit;
+  if AObj = nil then
+    raise EBsonDeserializer.Create(SCanTBuildPropInfoListOfANilObjec);
+  if GetPropInfosDictionaryDictionary.TryGetValue(AObj.ClassType, FPropInfos) then
+    exit;
+  TypeData := GetAndCheckTypeData(AObj.ClassType);
+  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
+  try
+    FPropInfos := TPropInfosDictionary.Create(PropList); // FPropInfos takes ownership of PropList
+    try
+      GetPropInfos(AObj.ClassInfo, PropList);
+      for i := 0 to TypeData.PropCount - 1 do
+        {$IFDEF DELPHIXE}
+        FPropInfos.Add(PropList[i].Name, PropList[i]);
+        {$ELSE}
+        FPropInfos.Add(PropList[i].Name, TObject(PropList[i]));
+        {$ENDIF}
+      GetPropInfosDictionaryDictionary.Add({$IFNDEF DELPHIXE}integer({$ENDIF}AObj.ClassType{$IFNDEF DELPHIXE}){$ENDIF}, FPropInfos);
+    except
+      FPropInfos.Free;
+      raise;
+    end;
+  except
+    if FPropInfos = nil then
+      FreeMem(PropList);
+    FPropInfos := nil;
+    raise;
+  end;
+end;
+
 { TBaseBsonSerializer }
 
 constructor TBaseBsonSerializer.Create;
@@ -874,43 +913,6 @@ begin
       {$ENDIF}
       TClassPropInfoDictionaryDictionary(PropInfosDictionaryCacheTrackingList[i]).Free;
     end;
-end;
-
-procedure TBaseBsonSerialization.InitializePropInfos(AObj: TObject);
-var
-  PropList : PPropList;
-  TypeData : PTypeData;
-  i : integer;
-begin
-  if FPropInfos <> nil then
-    exit;
-  if AObj = nil then
-    raise EBsonDeserializer.Create(SCanTBuildPropInfoListOfANilObjec);
-  if GetPropInfosDictionaryDictionary.TryGetValue(AObj.ClassType, FPropInfos) then
-    exit;
-  TypeData := GetAndCheckTypeData(AObj.ClassType);
-  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
-  try
-    FPropInfos := TPropInfosDictionary.Create(PropList); // FPropInfos takes ownership of PropList
-    try
-      GetPropInfos(AObj.ClassInfo, PropList);
-      for i := 0 to TypeData.PropCount - 1 do
-        {$IFDEF DELPHIXE}
-        FPropInfos.Add(PropList[i].Name, PropList[i]);
-        {$ELSE}
-        FPropInfos.Add(PropList[i].Name, TObject(PropList[i]));
-        {$ENDIF}
-      GetPropInfosDictionaryDictionary.Add({$IFNDEF DELPHIXE}integer({$ENDIF}AObj.ClassType{$IFNDEF DELPHIXE}){$ENDIF}, FPropInfos);
-    except
-      FPropInfos.Free;
-      raise;
-    end;
-  except
-    if FPropInfos = nil then
-      FreeMem(PropList);
-    FPropInfos := nil;
-    raise;
-  end;
 end;
 
 initialization
