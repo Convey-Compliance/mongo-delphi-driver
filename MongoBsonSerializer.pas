@@ -59,6 +59,7 @@ type
     function TryGetValue(const key: string; var APropInfo: PPropInfo): Boolean;
   end;
   {$ENDIF}
+
   TPrimitivesBsonDeserializer = class(TBaseBsonDeserializer)
   private
     FPropInfos : TPropInfosDictionary;
@@ -88,7 +89,7 @@ procedure UnregisterBuildableSerializableClass(const AClassName : string);
 implementation
 
 uses
-  MongoApi, HashTrie {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
+  MongoApi {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
 const
   SBoolean = 'Boolean';
@@ -167,7 +168,8 @@ type
   {$ELSE}
   TBuilderFunctionsDictionary = class(TStringHashTrie)
   public
-    function TryGetValue(const key: string; var ABuilderFunction: TObjectBuilderFunction): Boolean;
+    function TryGetValue(const key: string; var ABuilderFunction:
+        TObjectBuilderFunction): Boolean;
   end;
   {$ENDIF}
 
@@ -585,7 +587,11 @@ var
   MustAssignObjectProperty : boolean;
 begin
   Obj := GetObjectProp(ATarget, p);
+  {$IFNDEF DELPHI2009}
+  Deserializer := CreateDeserializer(GetTypeData(p.PropType^)^.ClassType);
+  {$ELSE}
   Deserializer := CreateDeserializer(p.PropType^.TypeData.ClassType);
+  {$ENDIF}
   try
     if Source.Kind in [bsonOBJECT, bsonARRAY] then
       Deserializer.Source := Source.subiterator
@@ -597,7 +603,12 @@ begin
             _Type := Source.value;
             Source.next;
           end
-          else _Type := p.PropType^.TypeData^.ClassType.ClassName;
+          else
+          {$IFNDEF DELPHI2009}
+          _Type := GetTypeData(p.PropType^)^.ClassType.ClassName;
+          {$ELSE}
+          _Type := p.PropType^.TypeData^.ClassType.ClassName;
+          {$ENDIF}
         Obj := BuildObject(_Type);
         MustAssignObjectProperty := True;
       end
@@ -797,13 +808,27 @@ procedure RegisterBuildableSerializableClass(const AClassName : string;
 var
   BuilderFunctionAsPointer : pointer absolute ABuilderFunction;
 begin
-  BuilderFunctions.Add(AClassName, BuilderFunctionAsPointer);
+  BuilderFunctions.Add(AClassName, {$IFNDEF DELPHIXE}TObject({$ENDIF}BuilderFunctionAsPointer{$IFNDEF DELPHIXE}){$ENDIF});
 end;
 
 procedure UnregisterBuildableSerializableClass(const AClassName : string);
 begin
+  {$IFNDEF DELPHIXE}
+  BuilderFunctions.Delete(AClassName);
+  {$ELSE}
   BuilderFunctions.Remove(AClassName);
+  {$ENDIF}
 end;
+
+{$IFNDEF DELPHIXE}
+function TBuilderFunctionsDictionary.TryGetValue(const key: string; var
+    ABuilderFunction: TObjectBuilderFunction): Boolean;
+var
+  ABuilderFunctionAsObject : TObject absolute ABuilderFunction;
+begin
+  Result := Find(key, ABuilderFunctionAsObject);
+end;
+{$ENDIF}
 
 initialization
   BuilderFunctions := TBuilderFunctionsDictionary.Create;
