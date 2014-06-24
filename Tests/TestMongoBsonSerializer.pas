@@ -48,7 +48,8 @@ type
 
   TTestObject = class
   private
-    F_a : integer;
+    FContext: Pointer;
+    F_a: NativeUInt;
     FThe_02_AnsiChar: AnsiChar;
     FThe_00_Int: Integer;
     FThe_01_Int64: Int64;
@@ -77,6 +78,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    property Context: Pointer read FContext write FContext;
   published
     property The_00_Int: Integer read FThe_00_Int write FThe_00_Int;
     property The_01_Int64: Int64 read FThe_01_Int64 write FThe_01_Int64;
@@ -103,7 +105,7 @@ type
     property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
     property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
     property The_24_DynIntArrArr: TDynIntArrArr read FThe_24_DynIntArrArr write FThe_24_DynIntArrArr;
-    property _a : integer read F_a write F_a; // this property serves the purpose to test mongo dynamics to return _type first
+    property _a: NativeUInt read F_a write F_a;
   end;
 
   TTestObjectWithObjectAsStringList = class
@@ -197,7 +199,7 @@ begin
     TestObject2 := TTestObjectWithObjectAsStringList.Create;
     try
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Deserialize(TObject(TestObject2));
+      FDeserializer.Deserialize(TObject(TestObject2), nil);
 
       CheckEquals('Name1=Value1', TestObject2.ObjectAsStringList[0]);
       CheckEquals('Name5=Value5', TestObject2.ObjectAsStringList[4]);
@@ -209,9 +211,10 @@ begin
   end;
 end;
 
-function BuildTTestObject(const AClassName : string) : TObject;
+function BuildTTestObject(const AClassName: string; AContext: Pointer): TObject;
 begin
   Result := TTestObject.Create;
+  (Result as TTestObject).Context := AContext;
 end;
 
 procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding;
@@ -230,21 +233,21 @@ begin
   FDeserializer.Source := FSerializer.Target.finish.iterator;
   RegisterBuildableSerializableClass(TTestObject.ClassName, BuildTTestObject);
   try
-    FDeserializer.Deserialize(TObject(AObj));
+    FDeserializer.Deserialize(TObject(AObj), pointer(1234));
     Check(AObj <> nil, 'Object returned from deserialization must be <> nil');
     CheckEquals(123, AObj.The_00_Int, 'The_00_Int attribute should be equals to 123');
+    CheckEquals(1234, NativeUInt(AObj.Context), 'property Context should be equals to 1234');
   finally
     UnregisterBuildableSerializableClass(TTestObject.ClassName);
   end;
 end;
 
-function BuildTSubObject(const AClassName : string) : TObject;
+function BuildTSubObject(const AClassName: string; AContext: Pointer): TObject;
 begin
   Result := TSubObject.Create;
 end;
 
-procedure
-    TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
+procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
 var
   AObj : TTestObject;
 begin
@@ -259,7 +262,7 @@ begin
   AObj := nil;
   FDeserializer.Source := FSerializer.Target.finish.iterator;
   try
-    FDeserializer.Deserialize(TObject(AObj));
+    FDeserializer.Deserialize(TObject(AObj), nil);
     Fail('Should have raised exception that it cound not find suitable builder for class TTestObject');
   except
     on E : Exception do CheckEqualsString('Suitable builder not found for class <TTestObject>', E.Message);
@@ -286,7 +289,7 @@ begin
     FDeserializer.Source := FSerializer.Target.finish.iterator;
     RegisterBuildableSerializableClass(TSubObject.ClassName, BuildTSubObject);
     try
-      FDeserializer.Deserialize(TObject(AObj));
+      FDeserializer.Deserialize(TObject(AObj), nil);
       Check(AObj.The_08_SubObject <> nil, 'AObj.The_08_SubObject must be <> nil after deserialization');
       CheckEquals(123, AObj.The_08_SubObject.TheInt, 'The_00_Int attribute should be equals to 123');
     finally
@@ -566,7 +569,7 @@ begin
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Deserialize(TObject(Obj2));
+      FDeserializer.Deserialize(TObject(Obj2), nil);
 
       CheckEquals(10, obj2.The_00_Int, 'Value of The_00_Int doesn''t match');
       CheckEquals(11, obj2.The_01_Int64, 'Value of The_01_Int64 doesn''t match');

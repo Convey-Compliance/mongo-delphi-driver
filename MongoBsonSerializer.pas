@@ -13,7 +13,7 @@ const
   SERIALIZED_ATTRIBUTE_ACTUALTYPE = '_type';
 
 type
-  TObjectBuilderFunction = function(const AClassName : string) : TObject;
+  TObjectBuilderFunction = function(const AClassName : string; AContext : Pointer) : TObject;
   EBsonSerializationException = class(Exception);
 
   {$IFDEF DELPHIXE}
@@ -26,9 +26,9 @@ type
   public
     constructor Create(APropList : PPropList); {$IFNDEF DELPHIXE} reintroduce; {$ENDIF}
     destructor Destroy; override;
-  {$IFNDEF DELPHIXE}
+    {$IFNDEF DELPHIXE}
     function TryGetValue(const key: string; var APropInfo: PPropInfo): Boolean;
-  {$ENDIF}
+    {$ENDIF}
     property PropList : PPropList read FPropList;
   end;
 
@@ -52,7 +52,7 @@ type
     FSource: IBsonIterator;
   public
     constructor Create; virtual;
-    procedure Deserialize(var ATarget: TObject); virtual; abstract;
+    procedure Deserialize(var ATarget: TObject; AContext: Pointer); virtual; abstract;
     property Source: IBsonIterator read FSource write FSource;
   end;
 
@@ -68,14 +68,14 @@ type
 
   TPrimitivesBsonDeserializer = class(TBaseBsonDeserializer)
   private
-    function BuildObject(const _Type: string): TObject;
-    procedure DeserializeIterator(var ATarget: TObject);
-    procedure DeserializeObject(p: PPropInfo; ATarget: TObject);
+    function BuildObject(const _Type: string; AContext : Pointer): TObject;
+    procedure DeserializeIterator(var ATarget: TObject; AContext : Pointer);
+    procedure DeserializeObject(p: PPropInfo; ATarget: TObject; AContext: Pointer);
     procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
     procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
     function GetArrayDimension(it: IBsonIterator) : Integer;
   public
-    procedure Deserialize(var ATarget: TObject); override;
+    procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
   end;
 
 { ****** IMPORTANT *******
@@ -161,12 +161,12 @@ type
 
   TStringsBsonDeserializer = class(TBaseBsonDeserializer)
   public
-    procedure Deserialize(var ATarget: TObject); override;
+    procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
   end;
 
   TStreamBsonDeserializer = class(TBaseBsonDeserializer)
   public
-    procedure Deserialize(var ATarget: TObject); override;
+    procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
   end;
 
   TObjectAsStringListBsonSerializer = class(TBaseBsonSerializer)
@@ -176,7 +176,7 @@ type
 
   TObjectAsStringListBsonDeserializer = class(TBaseBsonDeserializer)
   public
-    procedure Deserialize(var ATarget: TObject); override;
+    procedure Deserialize(var ATarget: TObject; AContext: Pointer); override;
   end;
 
   {$IFDEF DELPHIXE}
@@ -540,24 +540,26 @@ begin
   inherited Create;
 end;
 
-function TPrimitivesBsonDeserializer.BuildObject(const _Type: string): TObject;
+function TPrimitivesBsonDeserializer.BuildObject(const _Type: string; AContext: Pointer): TObject;
 var
   BuilderFn : TObjectBuilderFunction;
 begin
   BuilderFn := GetSerializableObjectBuilderFunction(_Type);
   if @BuilderFn = nil then
     raise EBsonDeserializer.CreateFmt(SSuitableBuilderNotFoundForClass, [_Type]);
-  Result := BuilderFn(_Type);
+  Result := BuilderFn(_Type, AContext);
 end;
 
 { TPrimitivesBsonDeserializer }
 
-procedure TPrimitivesBsonDeserializer.Deserialize(var ATarget: TObject);
+procedure TPrimitivesBsonDeserializer.Deserialize(var ATarget: TObject;
+    AContext : Pointer);
 begin
-  DeserializeIterator(ATarget);
+  DeserializeIterator(ATarget, AContext);
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeIterator(var ATarget: TObject);
+procedure TPrimitivesBsonDeserializer.DeserializeIterator(var ATarget: TObject;
+    AContext : Pointer);
 var
   p : PPropInfo;
   po : Pointer;
@@ -575,7 +577,7 @@ begin
   while Source.next do
     begin
       if (ATarget = nil) and (Source.key = SERIALIZED_ATTRIBUTE_ACTUALTYPE) then
-        ATarget := BuildObject(Source.value);
+        ATarget := BuildObject(Source.value, AContext);
       PropInfosDictionary := GetPropInfosDictionary(ATarget);
       if not PropInfosDictionary.TryGetValue(Source.key, p) then
         continue;
@@ -637,16 +639,16 @@ begin
                 SetDynArrayProp(ATarget, p, po);
               end;
             end;
-            tkClass : DeserializeObject(p, ATarget);
+            tkClass : DeserializeObject(p, ATarget, AContext);
           end;
         bsonOBJECT, bsonBINDATA : if p^.PropType^.Kind = tkClass then
-          DeserializeObject(p, ATarget);
+          DeserializeObject(p, ATarget, AContext);
       end;
     end;
 end;
 
-procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; ATarget:
-    TObject);
+procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; ATarget: TObject; AContext:
+    Pointer);
 var
   Deserializer : TBaseBsonDeserializer;
   Obj : TObject;
@@ -676,11 +678,11 @@ begin
           {$ELSE}
           _Type := p.PropType^.TypeData^.ClassType.ClassName;
           {$ENDIF}
-        Obj := BuildObject(_Type);
+        Obj := BuildObject(_Type, AContext);
         MustAssignObjectProperty := True;
       end
       else MustAssignObjectProperty := False;
-    Deserializer.Deserialize(Obj);
+    Deserializer.Deserialize(Obj, AContext);
     if MustAssignObjectProperty then
       SetObjectProp(ATarget, p, Obj);
   finally
@@ -759,7 +761,7 @@ end;
 
 { TStringsBsonDeserializer }
 
-procedure TStringsBsonDeserializer.Deserialize(var ATarget: TObject);
+procedure TStringsBsonDeserializer.Deserialize(var ATarget: TObject; AContext: Pointer);
 var
   AStrings : TStrings;
 begin
@@ -817,7 +819,7 @@ end;
 
 { TStreamBsonDeserializer }
 
-procedure TStreamBsonDeserializer.Deserialize(var ATarget: TObject);
+procedure TStreamBsonDeserializer.Deserialize(var ATarget: TObject; AContext: Pointer);
 var
   binData : IBsonBinary;
   Stream : TStream;
@@ -847,7 +849,8 @@ end;
 
 { TObjectAsStringListBsonDeserializer }
 
-procedure TObjectAsStringListBsonDeserializer.Deserialize(var ATarget: TObject);
+procedure TObjectAsStringListBsonDeserializer.Deserialize(var ATarget: TObject;
+    AContext: Pointer);
 var
   AStrings : TStrings;
 begin
