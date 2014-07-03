@@ -263,9 +263,9 @@ begin
   FDeserializer.Source := FSerializer.Target.finish.iterator;
   try
     FDeserializer.Deserialize(TObject(AObj), nil);
-    Fail('Should have raised exception that it cound not find suitable builder for class TTestObject');
+    Fail('Should have raised exception that it cound not find suitable builder for class TestObject');
   except
-    on E : Exception do CheckEqualsString('Suitable builder not found for class <TTestObject>', E.Message);
+    on E : Exception do CheckEqualsString('Suitable builder not found for class <TestObject>', E.Message);
   end;
 end;
 
