@@ -94,6 +94,10 @@ function CreateDeserializer(AClass : TClass): TBaseBsonDeserializer;
 procedure RegisterBuildableSerializableClass(const AClassName : string; ABuilderFunction : TObjectBuilderFunction);
 procedure UnregisterBuildableSerializableClass(const AClassName : string);
 
+{ Use Strip_T_FormClassName() when comparing a regular Delphi ClassName with a serialized _type attribute
+  coming from service-bus passed as parameter to object builder function }
+function Strip_T_FormClassName(const AClassName : string): string;
+
 implementation
 
 uses
@@ -198,6 +202,13 @@ var
 threadvar
   // To reduce contention maintaining cache of PropInfosDictionary we will keep one cache per thread using a threadvar (TLS)
   PropInfosDictionaryDictionary : TClassPropInfoDictionaryDictionary;
+
+function Strip_T_FormClassName(const AClassName : string): string;
+begin
+  Result := AClassName;
+  if (Result <> '') and (UpCase(Result[1]) = 'T') then
+    system.Delete(Result, 1, 1);
+end;
 
 function GetPropInfosDictionaryDictionary : TClassPropInfoDictionaryDictionary;
 begin
@@ -353,7 +364,7 @@ end;
 
 procedure TBaseBsonSerializer.Serialize_type(ASource: TObject);
 begin
-  Target.append(SERIALIZED_ATTRIBUTE_ACTUALTYPE, ASource.ClassName);
+  Target.append(SERIALIZED_ATTRIBUTE_ACTUALTYPE, Strip_T_FormClassName(ASource.ClassName));
 end;
 
 { TPrimitivesBsonSerializer }
@@ -674,9 +685,9 @@ begin
           end
           else
           {$IFNDEF DELPHI2009}
-          _Type := GetTypeData(p.PropType^)^.ClassType.ClassName;
+          _Type := Strip_T_FormClassName(GetTypeData(p.PropType^)^.ClassType.ClassName);
           {$ELSE}
-          _Type := p.PropType^.TypeData^.ClassType.ClassName;
+          _Type := Strip_T_FormClassName(p.PropType^.TypeData^.ClassType.ClassName);
           {$ENDIF}
         Obj := BuildObject(_Type, AContext);
         MustAssignObjectProperty := True;
@@ -864,15 +875,15 @@ procedure RegisterBuildableSerializableClass(const AClassName : string;
 var
   BuilderFunctionAsPointer : pointer absolute ABuilderFunction;
 begin
-  BuilderFunctions.Add(AClassName, {$IFNDEF DELPHIXE}TObject({$ENDIF}BuilderFunctionAsPointer{$IFNDEF DELPHIXE}){$ENDIF});
+  BuilderFunctions.Add(Strip_T_FormClassName(AClassName), {$IFNDEF DELPHIXE}TObject({$ENDIF}BuilderFunctionAsPointer{$IFNDEF DELPHIXE}){$ENDIF});
 end;
 
 procedure UnregisterBuildableSerializableClass(const AClassName : string);
 begin
   {$IFNDEF DELPHIXE}
-  BuilderFunctions.Delete(AClassName);
+  BuilderFunctions.Delete(Strip_T_FormClassName(AClassName));
   {$ELSE}
-  BuilderFunctions.Remove(AClassName);
+  BuilderFunctions.Remove(Strip_T_FormClassName(AClassName));
   {$ENDIF}
 end;
 
