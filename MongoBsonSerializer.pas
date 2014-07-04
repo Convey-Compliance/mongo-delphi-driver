@@ -517,7 +517,7 @@ var
   AList : TStrings;
 begin
   Target.startArray(AName);
-  AList := ASource as TStringList;
+  AList := ASource as TStrings;
   for i := 0 to AList.Count - 1 do
     Target.append('', AList[i]);
   Target.finishObject;
