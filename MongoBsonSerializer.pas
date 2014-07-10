@@ -580,7 +580,7 @@ var
      the call to DynArrayFromVariant() will fail rather than assigning nil to Apo parameter *)
   procedure SafeDynArrayFromVariant(var Apo : Pointer; const Av : Variant; ATypeInfo: Pointer);
   begin
-    if VarArrayHighBound(Av, 1) - VarArrayLowBound(Av, 1) > 0 then
+    if VarArrayHighBound(Av, 1) - VarArrayLowBound(Av, 1) >= 0 then
       DynArrayFromVariant(Apo, Av, ATypeInfo)
     else Apo := nil;
   end;
