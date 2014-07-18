@@ -82,14 +82,13 @@
         <Icon_MainIcon>DelphiMongoClientTests_Icon.ico</Icon_MainIcon>
         <Manifest_File>None</Manifest_File>
         <DCC_DcuOutput>..\..\..\intermediate\$(Platform)\$(Config)</DCC_DcuOutput>
-        <DCC_UnitSearchPath>$(BDS)\Source\DUnit\src;..\..\delphi-fastmm\;..\;$(BDS)\Source\dUnit\Contrib\XMLReporting;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>..\..\convey-private-libs;..\..\convey-public-libs;..\..\delphi-fastmm;$(BDS)\Source\DUnit\src;..\..\delphi-fastmm\;..\;$(BDS)\Source\dUnit\Contrib\XMLReporting;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_Namespace>Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;System;Xml;Data;Datasnap;Web;Soap;Winapi;$(DCC_Namespace)</DCC_Namespace>
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BRCC_Defines>FASTMM;NeverSleepOnThreadContention;DEBUG;OnDemandMongoCLoad</BRCC_Defines>
-        <DCC_UnitSearchPath>..\..\..\FastMM4\;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_SYMBOL_EXPERIMENTAL>false</DCC_SYMBOL_EXPERIMENTAL>
         <DCC_UNIT_DEPRECATED>false</DCC_UNIT_DEPRECATED>
         <DCC_SYMBOL_PLATFORM>false</DCC_SYMBOL_PLATFORM>
@@ -107,7 +106,6 @@
         <Debugger_IncludeSystemVars>true</Debugger_IncludeSystemVars>
         <DCC_DcuOutput>..\..\..\intermediate\x64\$(Config)</DCC_DcuOutput>
         <BRCC_Defines>FASTMM;NeverSleepOnThreadContention;DEBUG;OnDemandMongoCLoad</BRCC_Defines>
-        <DCC_UnitSearchPath>..\..\..\FastMM4\;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_SYMBOL_PLATFORM>false</DCC_SYMBOL_PLATFORM>
         <DCC_SYMBOL_EXPERIMENTAL>false</DCC_SYMBOL_EXPERIMENTAL>
         <DCC_UNIT_DEPRECATED>false</DCC_UNIT_DEPRECATED>
@@ -155,6 +153,7 @@
         <DCC_MapFile>3</DCC_MapFile>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
+        <DCC_UnitSearchPath>..\..\convey-private-libs;..\..\convey-public-libs;..\..\delphi-fastmm;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_Define>NoDebugInfo;$(DCC_Define)</DCC_Define>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
@@ -267,12 +266,6 @@
         <DCCReference Include="..\MongoDB.pas"/>
         <DCCReference Include="..\MongoPool.pas"/>
         <DCCReference Include="..\MongoStream.pas"/>
-        <DCCReference Include="..\Ufilemanagement.pas"/>
-        <DCCReference Include="..\uStack.pas"/>
-        <DCCReference Include="TestuStack.pas"/>
-        <DCCReference Include="..\uPrimitiveAllocator.pas"/>
-        <DCCReference Include="TestuPrimitiveAllocator.pas"/>
-        <DCCReference Include="TestuAllocators.pas"/>
         <DCCReference Include="..\LibBsonAPI.pas"/>
         <DCCReference Include="TestMongoBsonSerializer.pas"/>
         <DCCReference Include="..\MongoBsonSerializer.pas"/>
