@@ -155,6 +155,7 @@
         <DCC_MapFile>3</DCC_MapFile>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
+        <DCC_UnitSearchPath>..\..\convey-private-libs;..\..\convey-public-libs;..\..\delphi-fastmm;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_Define>NoDebugInfo;$(DCC_Define)</DCC_Define>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
