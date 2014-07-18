@@ -62,6 +62,7 @@ type
     procedure SerializePropInfo(APropInfo: PPropInfo; ASource: TObject);
     procedure SerializeSet(APropInfo: PPropInfo; ASource: TObject);
     procedure SerializeVariant(APropInfo: PPropInfo; const AName: String; const AVariant: Variant; ASource: TObject);
+    procedure SerializeDynamicArrayOfObjects(APropInfo: PPropInfo; ASource: TObject);
   public
     procedure Serialize(const AName: String; ASource: TObject); override;
   end;
@@ -70,9 +71,12 @@ type
   private
     function BuildObject(const _Type: string; AContext : Pointer): TObject;
     procedure DeserializeIterator(var ATarget: TObject; AContext : Pointer);
-    procedure DeserializeObject(p: PPropInfo; ATarget: TObject; AContext: Pointer);
+    procedure DeserializeObject(p: PPropInfo; ATarget: TObject; AContext: Pointer); overload;
+    procedure DeserializeObject(AObjClass: TClass; var AObj: TObject;
+                                ASource: IBsonIterator; AContext: Pointer); overload;
     procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
     procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
+    procedure DeserializeDynamicArrayOfObjects(p: PPropInfo; var ATarget: TObject; AContext : Pointer);
     function GetArrayDimension(it: IBsonIterator) : Integer;
   public
     procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
@@ -101,7 +105,8 @@ function Strip_T_FormClassName(const AClassName : string): string;
 implementation
 
 uses
-  SyncObjs, MongoApi {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
+  SyncObjs, MongoApi, uLinkedListDefaultImplementor, uScope
+  {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
 const
   SBoolean = 'Boolean';
@@ -117,6 +122,7 @@ resourcestring
   SCouldNotFindClass = 'Could not find target for class %s';
 
 type
+  TObjectDynArray = array of TObject;
   {$IFDEF DELPHIXE}
   TClassPairList = TList<TPair<TClass, TClass>>;
   TClassPair = TPair<TClass, TClass>;
@@ -386,6 +392,7 @@ procedure TPrimitivesBsonSerializer.SerializePropInfo(APropInfo: PPropInfo;
     ASource: TObject);
 var
   ADate : TDateTime;
+  dynArrayElementInfo: PPTypeInfo;
 begin
   case APropInfo.PropType^.Kind of
     tkInteger : Target.append(APropInfo.Name, GetOrdProp(ASource, APropInfo));
@@ -430,8 +437,16 @@ begin
       end;
     tkClass : SerializeObject(APropInfo, ASource);
     tkVariant : SerializeVariant(APropInfo, APropInfo.Name, Null, ASource);
-    tkDynArray : SerializeVariant(nil, APropInfo.Name, GetPropValue(ASource, APropInfo), ASource);
-  end;
+    tkDynArray :
+    begin
+      dynArrayElementInfo := GetTypeData(APropInfo.PropType^)^.elType2;
+      if (dynArrayElementInfo <> nil) and (dynArrayElementInfo^.Kind = tkClass) then
+        SerializeDynamicArrayOfObjects(APropInfo, ASource) // its array of objects
+      else // its array of primitives
+        SerializeVariant(nil, APropInfo.Name, GetPropValue(ASource, APropInfo), ASource);
+    end;
+
+  end;   
 end;
 
 procedure TPrimitivesBsonSerializer.SerializeSet(APropInfo: PPropInfo; ASource:
@@ -508,6 +523,26 @@ begin
   end;
 end;
 
+procedure TPrimitivesBsonSerializer.SerializeDynamicArrayOfObjects(
+  APropInfo: PPropInfo; ASource: TObject);
+var
+  dynArrOfObjs: TObjectDynArray;
+  I: Integer;
+  SubSerializer : TBaseBsonSerializer;
+  scope: IScope;
+begin
+  scope := NewScope;
+  Target.startArray(APropInfo.Name);
+  dynArrOfObjs := TObjectDynArray(GetDynArrayProp(ASource, APropInfo));
+  for I := Low(dynArrOfObjs) to High(dynArrOfObjs) do
+  begin
+    SubSerializer := scope.add(CreateSerializer(dynArrOfObjs[0].ClassType));
+    SubSerializer.Target := Target;
+    SubSerializer.Serialize(IntToStr(I), dynArrOfObjs[I]);
+  end;
+  Target.finishObject;
+end;
+
 { TStringsBsonSerializer }
 
 procedure TStringsBsonSerializer.Serialize(const AName: String; ASource:
@@ -572,6 +607,7 @@ end;
 procedure TPrimitivesBsonDeserializer.DeserializeIterator(var ATarget: TObject;
     AContext : Pointer);
 var
+  dynArrayElementInfo: PPTypeInfo;
   p : PPropInfo;
   po : Pointer;
   v : Variant;
@@ -635,19 +671,27 @@ begin
             end;
             tkDynArray :
             begin
-              po := GetDynArrayProp(ATarget, p^.Name);
-              if DynArrayDim(PDynArrayTypeInfo(p^.PropType^)) = 1 then
-              begin
-                DeserializeVariantArray(p, v);
-                SafeDynArrayFromVariant(po, v, p^.PropType^);
-                SetDynArrayProp(ATarget, p, po);
-              end
+              dynArrayElementInfo := GetTypeData(p.PropType^)^.elType2;
+              //ClassType
+              if (dynArrayElementInfo <> nil) and (dynArrayElementInfo^.Kind = tkClass) then
+                DeserializeDynamicArrayOfObjects(p, ATarget, AContext) // it's array of objects
               else
               begin
-                DynArrayToVariant(v, po, p^.PropType^);
-                DeserializeVariantArray(p, v);
-                SafeDynArrayFromVariant(po, v, p^.PropType^);
-                SetDynArrayProp(ATarget, p, po);
+                // it's array of primitives
+                po := GetDynArrayProp(ATarget, p^.Name);
+                if DynArrayDim(PDynArrayTypeInfo(p^.PropType^)) = 1 then
+                begin
+                  DeserializeVariantArray(p, v);
+                  SafeDynArrayFromVariant(po, v, p^.PropType^);
+                  SetDynArrayProp(ATarget, p, po);
+                end
+                else
+                begin
+                  DynArrayToVariant(v, po, p^.PropType^);
+                  DeserializeVariantArray(p, v);
+                  SafeDynArrayFromVariant(po, v, p^.PropType^);
+                  SetDynArrayProp(ATarget, p, po);
+                end;
               end;
             end;
             tkClass : DeserializeObject(p, ATarget, AContext);
@@ -661,41 +705,46 @@ end;
 procedure TPrimitivesBsonDeserializer.DeserializeObject(p: PPropInfo; ATarget: TObject; AContext:
     Pointer);
 var
-  Deserializer : TBaseBsonDeserializer;
-  Obj : TObject;
-  _Type : string;
+  c: TClass;
+  o: TObject;
   MustAssignObjectProperty : boolean;
 begin
-  Obj := GetObjectProp(ATarget, p);
   {$IFNDEF DELPHI2009}
-  Deserializer := CreateDeserializer(GetTypeData(p.PropType^)^.ClassType);
+  c := GetTypeData(p.PropType^)^.ClassType;
   {$ELSE}
-  Deserializer := CreateDeserializer(p.PropType^.TypeData.ClassType);
+  c := p.PropType^.TypeData.ClassType;
   {$ENDIF}
+  o := GetObjectProp(ATarget, p);
+  MustAssignObjectProperty := o = nil;
+  DeserializeObject(c, o, Source, AContext);
+  if MustAssignObjectProperty then
+    SetObjectProp(ATarget, p, o);
+end;
+
+procedure TPrimitivesBsonDeserializer.DeserializeObject(AObjClass: TClass; var AObj: TObject;
+  ASource: IBsonIterator; AContext: Pointer);
+var
+  Deserializer : TBaseBsonDeserializer;
+  _Type : string;
+begin
+  Deserializer := CreateDeserializer(AObjClass);
   try
     if Source.Kind in [bsonOBJECT, bsonARRAY] then
-      Deserializer.Source := Source.subiterator
-    else Deserializer.Source := Source; // for bindata we need original BsonIterator to obtain binary handler
-    if Obj = nil then
-      begin
-        if Source.key = SERIALIZED_ATTRIBUTE_ACTUALTYPE then
-          begin
-            _Type := Source.value;
-            Source.next;
-          end
-          else
-          {$IFNDEF DELPHI2009}
-          _Type := Strip_T_FormClassName(GetTypeData(p.PropType^)^.ClassType.ClassName);
-          {$ELSE}
-          _Type := Strip_T_FormClassName(p.PropType^.TypeData^.ClassType.ClassName);
-          {$ENDIF}
-        Obj := BuildObject(_Type, AContext);
-        MustAssignObjectProperty := True;
-      end
-      else MustAssignObjectProperty := False;
-    Deserializer.Deserialize(Obj, AContext);
-    if MustAssignObjectProperty then
-      SetObjectProp(ATarget, p, Obj);
+      Deserializer.Source := ASource.subiterator
+    else
+      Deserializer.Source := ASource; // for bindata we need original BsonIterator to obtain binary handler
+    if AObj = nil then
+    begin
+      if Source.key = SERIALIZED_ATTRIBUTE_ACTUALTYPE then
+        begin
+          _Type := Source.value;
+          Source.next;
+        end
+        else
+          _Type := Strip_T_FormClassName(AObjClass.ClassName);
+      AObj := BuildObject(_Type, AContext);
+    end;
+    Deserializer.Deserialize(AObj, AContext);
   finally
     Deserializer.Free;
   end;
@@ -758,6 +807,35 @@ begin
   end;
   if dim = 1 then
     VarArrayRedim(v, j - 1);
+end;
+
+procedure TPrimitivesBsonDeserializer.DeserializeDynamicArrayOfObjects(
+  p: PPropInfo; var ATarget: TObject; AContext : Pointer);
+var
+  dynArrayElementInfo: PPTypeInfo;
+  dynArrOfObjs: TObjectDynArray;
+  I: Integer;
+  it: IBsonIterator;
+begin
+  if Source.Kind <> bsonARRAY then
+    Exit;
+
+  dynArrayElementInfo := GetTypeData(p.PropType^)^.elType2;
+  dynArrOfObjs := TObjectDynArray(GetDynArrayProp(ATarget, p));
+  SetLength(dynArrOfObjs, 256);
+  I := 0;
+  it := Source.subiterator;
+  while it.next and (it.Kind = bsonOBJECT) do
+  begin
+    if I > Length(dynArrOfObjs) then
+      SetLength(dynArrOfObjs, I * 2);
+    dynArrOfObjs[I] := GetTypeData(dynArrayElementInfo^)^.ClassType.Create;
+    DeserializeObject(GetTypeData(dynArrayElementInfo^)^.ClassType,
+                      dynArrOfObjs[I], it, AContext);
+    Inc(I);
+  end;
+  SetLength(dynArrOfObjs, I);
+  SetDynArrayProp(ATarget, p, dynArrOfObjs);
 end;
 
 function TPrimitivesBsonDeserializer.GetArrayDimension(it: IBsonIterator) : Integer;
