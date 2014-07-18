@@ -5,7 +5,8 @@
 interface
 
 uses
-  TestFramework{$IFNDEF VER130}, Variants{$EndIf}, MongoBsonSerializer, MongoBsonSerializableClasses;
+  TestFramework, uLinkedListDefaultImplementor, uScope
+  {$IFNDEF VER130}, Variants{$EndIf}, MongoBsonSerializer, MongoBsonSerializableClasses;
 
 type
   {$M+}
@@ -13,18 +14,20 @@ type
   private
     FSerializer: TBaseBsonSerializer;
     FDeserializer : TBaseBsonDeserializer;
+    FScope: IScope;
   public
     procedure SetUp; override;
     procedure TearDown; override;
   published
-    procedure TestCreateDeserializer(FSerializer: TBaseBsonSerializer; const Value:
-        string);
+    procedure TestCreateDeserializer(FSerializer: TBaseBsonSerializer;
+                                     const Value: string);
     procedure TestCreateSerializer;
     procedure TestSerializeObjectAsStringList_Flat;
     procedure TestSerializeObjectDeserializeWithDynamicBuilding;
     procedure TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
     procedure TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
     procedure TestSerializePrimitiveTypes;
+    procedure DynamicArrayOfObjects;
   end;
   {$M-}
 
@@ -38,6 +41,7 @@ type
   TEnumerationSet = set of TEnumeration;
   TDynIntArr = array of Integer;
   TDynIntArrArr = array of array of Integer;
+
   {$M+}
   TSubObject = class
   private
@@ -118,6 +122,15 @@ type
   published
     property ObjectAsStringList: TObjectAsStringList read FObjectAsStringList write SetObjectAsStringList;
   end;
+
+  TSubObjectArray = array of TSubObject;
+
+  TDynamicArrayOfObjectsContainer = class
+  private
+    FArr: TSubObjectArray;
+  published
+    property Arr: TSubObjectArray read FArr write FArr;
+  end;
   {$M-}
 
 constructor TTestObject.Create;
@@ -142,6 +155,7 @@ procedure TestTMongoBsonSerializer.SetUp;
 begin
   FSerializer := CreateSerializer(TObject);
   FDeserializer := CreateDeserializer(TObject);
+  FScope := NewScope;
 end;
 
 procedure TestTMongoBsonSerializer.TearDown;
@@ -640,6 +654,61 @@ begin
   end;
 end;
 
+procedure TestTMongoBsonSerializer.DynamicArrayOfObjects;
+var
+  obj, deserializedObj: TDynamicArrayOfObjectsContainer;
+  arr: TSubObjectArray;
+  I: Integer;
+  b: IBson;
+  it, subit: IBsonIterator;
+begin
+  SetLength(arr, 3);
+  for I := 0 to Length(arr) - 1 do
+  begin
+    arr[I] := TSubObject.Create;
+    arr[I].TheInt := 5 + I;
+  end;
+  obj := FScope.Add(TDynamicArrayOfObjectsContainer.Create);
+  obj.Arr := arr;
+
+  FSerializer.Target := NewBsonBuffer;
+  FSerializer.Serialize('', obj);
+
+  b := FSerializer.Target.finish;
+  it := NewBsonIterator(b);
+
+  Check(it.next);
+  Check(bsonSTRING = it.Kind);
+  CheckEqualsString('DynamicArrayOfObjectsContainer', it.AsUTF8String);
+  Check(it.next);
+
+  Check(bsonARRAY = it.Kind);
+  CheckEqualsString('Arr', it.key);
+  subit := it.subiterator;
+  for I := 0 to Length(arr) - 1 do
+  begin
+    Check(bsonOBJECT = subit.Kind);
+    Check(subit.next);
+    with subit.subiterator do
+    begin
+      Check(next);
+      CheckEqualsString('SubObject', AsUTF8String);
+      Check(next);
+      CheckEquals(arr[I].TheInt, AsInteger);
+      CheckFalse(next);
+    end;
+  end;
+  CheckFalse(subit.next);
+  CheckFalse(it.next);
+
+  deserializedObj := TDynamicArrayOfObjectsContainer.Create;
+  FDeserializer.Source := NewBsonIterator(b);
+  FDeserializer.Deserialize(TObject(deserializedObj), nil);
+
+  for I := 0 to Length(obj.Arr) - 1 do
+    CheckEquals(obj.Arr[I].TheInt, deserializedObj.Arr[I].TheInt);
+end;
+
 constructor TTestObjectWithObjectAsStringList.Create;
 begin
   inherited Create;
@@ -658,7 +727,7 @@ begin
 end;
 
 initialization
-  // Register any test cases with the test runner
   RegisterTest(TestTMongoBsonSerializer.Suite);
+
 end.
 
