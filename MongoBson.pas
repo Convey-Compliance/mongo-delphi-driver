@@ -252,6 +252,7 @@ type
   { TBsonIterators are used to step through the fields of a TBson document. }
   IBsonIterator = interface
     ['{BB81B815-9B18-43B7-A894-2FBE4F9B7562}']
+    function Find(const Name: UTF8String): Boolean;
     function GetAsInt64: Int64;
     function GetAsUTF8String : UTF8String;
     function GetAsInteger: Integer;
@@ -554,6 +555,7 @@ type
     procedure prepareArrayIterator(var i: IBsonIterator; var j, count: Integer;
         BSonType: TBsonType; const ATypeErrorMsg: UTF8String);
   public
+    function Find(const Name: UTF8String): Boolean;
     function getHandle: Pointer;
     function kind: TBsonType;
     function key: UTF8String;
@@ -845,6 +847,17 @@ end;
 procedure TBsonIterator.ErrorIteratorAtEnd(const AFnName: String);
 begin
   raise EMongo.Create(SErrorCallingIteratorAtEnd, AFnName, E_ErrorCallingIteratorAtEnd);
+end;
+
+function TBsonIterator.Find(const Name: UTF8String): Boolean;
+begin
+  while next do
+    if key = Name then
+    begin
+      Result := true;
+      Exit;
+    end;
+  Result := false;
 end;
 
 function TBsonIterator.getAsInt64: Int64;
