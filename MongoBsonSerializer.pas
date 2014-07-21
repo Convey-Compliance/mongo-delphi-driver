@@ -242,8 +242,12 @@ end;
 
 function GetSerializableObjectBuilderFunction(const AClassName : string):
     TObjectBuilderFunction;
+var
+  stub: TObjectBuilderFunction;
 begin
-  BuilderFunctions.TryGetValue(AClassName, Result);
+  Result := nil;
+  if BuilderFunctions.TryGetValue(AClassName, stub) then
+    Result := stub;
 end;
 
 {$IFNDEF DELPHIXE}
@@ -591,7 +595,7 @@ var
   BuilderFn : TObjectBuilderFunction;
 begin
   BuilderFn := GetSerializableObjectBuilderFunction(_Type);
-  if @BuilderFn = nil then
+  if not Assigned(BuilderFn) then
     raise EBsonDeserializer.CreateFmt(SSuitableBuilderNotFoundForClass, [_Type]);
   Result := BuilderFn(_Type, AContext);
 end;
@@ -829,7 +833,6 @@ begin
   begin
     if I > Length(dynArrOfObjs) then
       SetLength(dynArrOfObjs, I * 2);
-    dynArrOfObjs[I] := GetTypeData(dynArrayElementInfo^)^.ClassType.Create;
     DeserializeObject(GetTypeData(dynArrayElementInfo^)^.ClassType,
                       dynArrOfObjs[I], it, AContext);
     Inc(I);
