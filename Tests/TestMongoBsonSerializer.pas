@@ -726,8 +726,17 @@ begin
   FObjectAsStringList.Assign(Value);
 end;
 
+function BuildSubObject: TObject;
+begin
+  Result := TSubObject.Create;
+end;
+
 initialization
+  RegisterBuildableSerializableClass(TSubObject.ClassName, @BuildSubObject);
+
   RegisterTest(TestTMongoBsonSerializer.Suite);
 
+finalization
+  UnregisterBuildableSerializableClass(TSubObject.ClassName);
 end.
 
