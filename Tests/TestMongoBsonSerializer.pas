@@ -726,13 +726,13 @@ begin
   FObjectAsStringList.Assign(Value);
 end;
 
-function BuildSubObject: TObject;
+function BuildSubObject(const AClassName : string; AContext : Pointer): TObject;
 begin
   Result := TSubObject.Create;
 end;
 
 initialization
-  RegisterBuildableSerializableClass(TSubObject.ClassName, @BuildSubObject);
+  RegisterBuildableSerializableClass(TSubObject.ClassName, BuildSubObject);
 
   RegisterTest(TestTMongoBsonSerializer.Suite);
 
