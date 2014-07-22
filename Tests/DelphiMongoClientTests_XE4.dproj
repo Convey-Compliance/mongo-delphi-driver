@@ -78,6 +78,7 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
+        <DCC_WIDECHAR_REDUCED>false</DCC_WIDECHAR_REDUCED>
         <DCC_ExeOutput>..\..\..\bin\$(Platform)\$(Config)</DCC_ExeOutput>
         <Icon_MainIcon>DelphiMongoClientTests_Icon.ico</Icon_MainIcon>
         <Manifest_File>None</Manifest_File>
