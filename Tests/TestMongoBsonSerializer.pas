@@ -687,7 +687,7 @@ begin
     with subit.subiterator do
     begin
       Check(next);
-      CheckEqualsString('TIntSubObject', AsUTF8String);
+      CheckEqualsString('IntSubObject', AsUTF8String);
       Check(next);
       CheckEquals(arr[I].TheInt, AsInteger);
       CheckFalse(next);
