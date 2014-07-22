@@ -43,7 +43,7 @@ type
   TDynIntArrArr = array of array of Integer;
 
   {$M+}
-  TSubObject = class
+  TIntSubObject = class
   private
     FTheInt: Integer;
   published
@@ -62,7 +62,7 @@ type
     FThe_05_String: String;
     FThe_06_ShortString: ShortString;
     FThe_07_Set: TEnumerationSet;
-    FThe_08_SubObject: TSubObject;
+    FThe_08_SubObject: TIntSubObject;
     FThe_09_DynIntArr: TDynIntArr;
     FThe_10_WChar: WideChar;
     FThe_11_AnsiString: AnsiString;
@@ -92,7 +92,7 @@ type
     property The_05_String: String read FThe_05_String write FThe_05_String;
     property The_06_ShortString: ShortString read FThe_06_ShortString write FThe_06_ShortString;
     property The_07_Set: TEnumerationSet read FThe_07_Set write FThe_07_Set;
-    property The_08_SubObject: TSubObject read FThe_08_SubObject write FThe_08_SubObject;
+    property The_08_SubObject: TIntSubObject read FThe_08_SubObject write FThe_08_SubObject;
     property The_09_DynIntArr: TDynIntArr read FThe_09_DynIntArr write FThe_09_DynIntArr;
     property The_10_WChar: WideChar read FThe_10_WChar write FThe_10_WChar;
     property The_11_AnsiString: AnsiString read FThe_11_AnsiString write FThe_11_AnsiString;
@@ -123,7 +123,7 @@ type
     property ObjectAsStringList: TObjectAsStringList read FObjectAsStringList write SetObjectAsStringList;
   end;
 
-  TSubObjectArray = array of TSubObject;
+  TSubObjectArray = array of TIntSubObject;
 
   TDynamicArrayOfObjectsContainer = class
   private
@@ -136,7 +136,7 @@ type
 constructor TTestObject.Create;
 begin
   inherited Create;
-  FThe_08_SubObject := TSubObject.Create;
+  FThe_08_SubObject := TIntSubObject.Create;
   FThe_13_StringList := TStringList.Create;
   FThe_21_MemStream := TMemoryStream.Create;
   FThe_22_BlankMemStream := TMemoryStream.Create;
@@ -256,9 +256,9 @@ begin
   end;
 end;
 
-function BuildTSubObject(const AClassName: string; AContext: Pointer): TObject;
+function BuildTIntSubObject(const AClassName: string; AContext: Pointer): TObject;
 begin
-  Result := TSubObject.Create;
+  Result := TIntSubObject.Create;
 end;
 
 procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
@@ -301,14 +301,9 @@ begin
     AObj.The_08_SubObject.Free;
     AObj.The_08_SubObject := nil;
     FDeserializer.Source := FSerializer.Target.finish.iterator;
-    RegisterBuildableSerializableClass(TSubObject.ClassName, BuildTSubObject);
-    try
-      FDeserializer.Deserialize(TObject(AObj), nil);
-      Check(AObj.The_08_SubObject <> nil, 'AObj.The_08_SubObject must be <> nil after deserialization');
-      CheckEquals(123, AObj.The_08_SubObject.TheInt, 'The_00_Int attribute should be equals to 123');
-    finally
-      UnregisterBuildableSerializableClass(TSubObject.ClassName);
-    end;
+    FDeserializer.Deserialize(TObject(AObj), nil);
+    Check(AObj.The_08_SubObject <> nil, 'AObj.The_08_SubObject must be <> nil after deserialization');
+    CheckEquals(123, AObj.The_08_SubObject.TheInt, 'The_00_Int attribute should be equals to 123');
   finally
     AObj.Free;
   end;
@@ -665,7 +660,7 @@ begin
   SetLength(arr, 3);
   for I := 0 to Length(arr) - 1 do
   begin
-    arr[I] := TSubObject.Create;
+    arr[I] := TIntSubObject.Create;
     arr[I].TheInt := 5 + I;
   end;
   obj := FScope.Add(TDynamicArrayOfObjectsContainer.Create);
@@ -692,7 +687,7 @@ begin
     with subit.subiterator do
     begin
       Check(next);
-      CheckEqualsString('SubObject', AsUTF8String);
+      CheckEqualsString('TIntSubObject', AsUTF8String);
       Check(next);
       CheckEquals(arr[I].TheInt, AsInteger);
       CheckFalse(next);
@@ -726,17 +721,12 @@ begin
   FObjectAsStringList.Assign(Value);
 end;
 
-function BuildSubObject(const AClassName : string; AContext : Pointer): TObject;
-begin
-  Result := TSubObject.Create;
-end;
-
 initialization
-  RegisterBuildableSerializableClass(TSubObject.ClassName, BuildSubObject);
+  RegisterBuildableSerializableClass(TIntSubObject.ClassName, BuildTIntSubObject);
 
   RegisterTest(TestTMongoBsonSerializer.Suite);
 
 finalization
-  UnregisterBuildableSerializableClass(TSubObject.ClassName);
+  UnregisterBuildableSerializableClass(TIntSubObject.ClassName);
 end.
 
