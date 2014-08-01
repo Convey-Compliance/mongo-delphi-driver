@@ -41,7 +41,8 @@ uses
   LibBsonAPI in '..\LibBsonAPI.pas',
   TestMongoBsonSerializer in 'TestMongoBsonSerializer.pas',
   MongoBsonSerializer in '..\MongoBsonSerializer.pas',
-  MongoBsonSerializableClasses in '..\MongoBsonSerializableClasses.pas';
+  MongoBsonSerializableClasses in '..\MongoBsonSerializableClasses.pas',
+  uCnvDictionary in '..\uCnvDictionary.pas';
 
 {$R *.RES}
 
