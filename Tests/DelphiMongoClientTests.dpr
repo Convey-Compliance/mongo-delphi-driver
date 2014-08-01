@@ -37,7 +37,8 @@ uses
   uAllocators in '..\uAllocators.pas',
   MongoBsonSerializableClasses in '..\MongoBsonSerializableClasses.pas',
   MongoBsonSerializer in '..\MongoBsonSerializer.pas',
-  TestMongoBsonSerializer in 'TestMongoBsonSerializer.pas';
+  TestMongoBsonSerializer in 'TestMongoBsonSerializer.pas',
+  uCnvDictionary in '..\uCnvDictionary.pas';
 
 {$R *.RES}
 

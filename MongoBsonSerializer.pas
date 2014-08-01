@@ -5,9 +5,10 @@ interface
 {$i DelphiVersion_defines.inc}
 
 uses
-  Classes, MongoBson, SysUtils,
-  MongoBsonSerializableClasses,
-  {$IFDEF DELPHIXE} System.Generics.Collections, {$ELSE} HashTrie, {$ENDIF} TypInfo;
+  Classes, SysUtils, TypInfo,
+  MongoBson, MongoBsonSerializableClasses,
+  {$IFDEF DELPHIXE}System.Generics.Collections,{$ENDIF}
+  uCnvDictionary;
 
 const
   SERIALIZED_ATTRIBUTE_ACTUALTYPE = '_type';
@@ -15,22 +16,6 @@ const
 type
   TObjectBuilderFunction = function(const AClassName : string; AContext : Pointer) : TObject;
   EBsonSerializationException = class(Exception);
-
-  {$IFDEF DELPHIXE}
-  TPropInfosDictionary = class(TDictionary<string, PPropInfo>)
-  {$ELSE}
-  TPropInfosDictionary = class(TStringHashTrie)
-  {$ENDIF}
-  private
-    FPropList : PPropList;
-  public
-    constructor Create(APropList : PPropList); {$IFNDEF DELPHIXE} reintroduce; {$ENDIF}
-    destructor Destroy; override;
-    {$IFNDEF DELPHIXE}
-    function TryGetValue(const key: string; var APropInfo: PPropInfo): Boolean;
-    {$ENDIF}
-    property PropList : PPropList read FPropList;
-  end;
 
   EBsonSerializer = class(Exception);
   TBaseBsonSerializerClass = class of TBaseBsonSerializer;
@@ -145,15 +130,6 @@ type
   end;
   {$ENDIF}
 
-  {$IFDEF DELPHIXE}
-  TClassPropInfoDictionaryDictionary = TDictionary<TClass, TPropInfosDictionary>;
-  {$ELSE}
-  TClassPropInfoDictionaryDictionary = class(TIntegerHashTrie)
-  public
-    function TryGetValue(key: TClass; var APropInfoDictionary: TPropInfosDictionary): Boolean;
-  end;
-  {$ENDIF}
-
   TDefaultObjectBsonSerializer = class(TBaseBsonSerializer)
   public
     procedure Serialize(const AName: String; ASource: TObject); override;
@@ -189,25 +165,16 @@ type
     procedure Deserialize(var ATarget: TObject; AContext: Pointer); override;
   end;
 
-  {$IFDEF DELPHIXE}
-  TBuilderFunctionsDictionary = TDictionary<string, TObjectBuilderFunction>;
-  {$ELSE}
-  TBuilderFunctionsDictionary = class(TStringHashTrie)
-  public
-    function TryGetValue(const key: string; var ABuilderFunction: TObjectBuilderFunction): Boolean;
-  end;
-  {$ENDIF}
-
 var
   Serializers : TClassPairList;
   Deserializers : TClassPairList;
-  BuilderFunctions : TBuilderFunctionsDictionary;
+  BuilderFunctions : TCnvStringDictionary;
   PropInfosDictionaryCacheTrackingListLock : TSynchroObject;
   PropInfosDictionaryCacheTrackingList : TList;
 
 threadvar
   // To reduce contention maintaining cache of PropInfosDictionary we will keep one cache per thread using a threadvar (TLS)
-  PropInfosDictionaryDictionary : TClassPropInfoDictionaryDictionary;
+  PropInfosDictionaryDictionary : TCnvIntegerDictionary;
 
 function Strip_T_FormClassName(const AClassName : string): string;
 begin
@@ -216,15 +183,12 @@ begin
     system.Delete(Result, 1, 1);
 end;
 
-function GetPropInfosDictionaryDictionary : TClassPropInfoDictionaryDictionary;
+function GetPropInfosDictionaryDictionary : TCnvIntegerDictionary;
 begin
   if PropInfosDictionaryDictionary = nil then
     begin
-      PropInfosDictionaryDictionary := TClassPropInfoDictionaryDictionary.Create;
+      PropInfosDictionaryDictionary := TCnvIntegerDictionary.Create(true);
       try
-        {$IFNDEF DELPHIXE}
-        PropInfosDictionaryDictionary.AutoFreeObjects := True;
-        {$ENDIF}
         PropInfosDictionaryCacheTrackingListLock.Acquire;
         try
           PropInfosDictionaryCacheTrackingList.Add(PropInfosDictionaryDictionary);
@@ -243,11 +207,11 @@ end;
 function GetSerializableObjectBuilderFunction(const AClassName : string):
     TObjectBuilderFunction;
 var
-  stub: TObjectBuilderFunction;
+  stub: TObject;
 begin
   Result := nil;
   if BuilderFunctions.TryGetValue(AClassName, stub) then
-    Result := stub;
+    Result := TObjectBuilderFunction(stub);
 end;
 
 {$IFNDEF DELPHIXE}
@@ -334,33 +298,31 @@ begin
     raise EBsonSerializationException.Create(SObjectHasNotPublishedProperties);
 end;
 
-function GetPropInfosDictionary(AObj: TObject): TPropInfosDictionary;
+function GetPropInfosDictionary(AObj: TObject): TCnvStringDictionary;
 var
   PropList : PPropList;
   TypeData : PTypeData;
   i : integer;
+  o: TObject;
 begin
   if AObj = nil then
     raise EBsonSerializationException.Create(SCanTBuildPropInfoListOfANilObjec);
-  if GetPropInfosDictionaryDictionary.TryGetValue(AObj.ClassType, Result) then
+
+  if GetPropInfosDictionaryDictionary.TryGetValue(Integer(AObj.ClassType), o) then
+  begin
+    Result := TCnvStringDictionary(o);
     exit;
+  end;
+
   TypeData := GetAndCheckTypeData(AObj.ClassType);
-  GetMem(PropList, TypeData.PropCount * sizeof(PPropInfo));
+  GetPropList(AObj, PropList);
+  Result := TCnvStringDictionary.Create;
   try
-    Result := TPropInfosDictionary.Create(PropList); // Result takes ownership of PropList
-    try
-      GetPropInfos(AObj.ClassInfo, PropList);
-      for i := 0 to TypeData.PropCount - 1 do
-        Result.Add(PropList[i].Name, {$IFNDEF DELPHIXE}TObject({$ENDIF}PropList[i]{$IFNDEF DELPHIXE}){$ENDIF});
-      GetPropInfosDictionaryDictionary.Add({$IFNDEF DELPHIXE}integer({$ENDIF}AObj.ClassType{$IFNDEF DELPHIXE}){$ENDIF}, Result);
-    except
-      Result.Free;
-      raise;
-    end;
+    for i := 0 to TypeData.PropCount - 1 do
+      Result.AddOrSetValue(PropList[i].Name, TObject(PropList[i]));
+    GetPropInfosDictionaryDictionary.AddOrSetValue(Integer(AObj.ClassType), Result);
   except
-    if Result = nil then
-      FreeMem(PropList);
-    Result := nil;
+    Result.Free;
     raise;
   end;
 end;
@@ -379,17 +341,16 @@ end;
 
 { TPrimitivesBsonSerializer }
 
-procedure TPrimitivesBsonSerializer.Serialize(const AName: String; ASource:
-    TObject);
+procedure TPrimitivesBsonSerializer.Serialize(const AName: string; ASource: TObject);
 var
   TypeData : PTypeData;
   i : integer;
-  PropInfosDictionary : TPropInfosDictionary;
+  list: PPropList;
 begin
   TypeData := GetAndCheckTypeData(ASource.ClassType);
-  PropInfosDictionary := GetPropInfosDictionary(ASource);
+  GetPropList(ASource, list);
   for i := 0 to TypeData.PropCount - 1 do
-    SerializePropInfo(PropInfosDictionary.PropList[i], ASource);
+    SerializePropInfo(list[i], ASource);
 end;
 
 procedure TPrimitivesBsonSerializer.SerializePropInfo(APropInfo: PPropInfo;
@@ -615,7 +576,7 @@ var
   p : PPropInfo;
   po : Pointer;
   v : Variant;
-  PropInfosDictionary : TPropInfosDictionary;
+  PropInfosDictionary : TCnvStringDictionary;
   (* We need this safe function because if variant Av param represents a zero size array
      the call to DynArrayFromVariant() will fail rather than assigning nil to Apo parameter *)
   procedure SafeDynArrayFromVariant(var Apo : Pointer; const Av : Variant; ATypeInfo: Pointer);
@@ -630,7 +591,7 @@ begin
       if (ATarget = nil) and (Source.key = SERIALIZED_ATTRIBUTE_ACTUALTYPE) then
         ATarget := BuildObject(Source.value, AContext);
       PropInfosDictionary := GetPropInfosDictionary(ATarget);
-      if not PropInfosDictionary.TryGetValue(Source.key, p) then
+      if not PropInfosDictionary.TryGetValue(Source.key, TObject(p)) then
         continue;
       if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [bsonARRAY])  then
         SetVariantProp(ATarget, p, Source.value)
@@ -640,7 +601,7 @@ begin
             SetEnumProp(ATarget, p, STrue)
           else SetEnumProp(ATarget, p, SFalse);
         bsonLONG : SetInt64Prop(ATarget, p, Source.AsInt64);
-        bsonSTRING, bsonSYMBOL : if PropInfosDictionary.TryGetValue(Source.key, p) then
+        bsonSTRING, bsonSYMBOL : if PropInfosDictionary.TryGetValue(Source.key, TObject(p)) then
           case p^.PropType^.Kind of
             tkEnumeration : SetEnumProp(ATarget, p, Source.AsUTF8String);
             tkWString :
@@ -862,28 +823,6 @@ begin
     AStrings.Add(Source.AsUTF8String);
 end;
 
-{ TPropInfosDictionary }
-
-constructor TPropInfosDictionary.Create(APropList: PPropList);
-begin
-  inherited Create;
-  FPropList := APropList;
-end;
-
-destructor TPropInfosDictionary.Destroy;
-begin
-  FreeMem(FPropList);
-  inherited;
-end;
-
-{$IFNDEF DELPHIXE}
-function TPropInfosDictionary.TryGetValue(const key: string; var APropInfo:
-    PPropInfo): Boolean;
-begin
-  Result := Find(key, TObject(APropInfo));
-end;
-{$ENDIF}
-
 { TStreamBsonSerializer }
 
 procedure TStreamBsonSerializer.Serialize(const AName: String; ASource:
@@ -956,59 +895,26 @@ procedure RegisterBuildableSerializableClass(const AClassName : string;
 var
   BuilderFunctionAsPointer : pointer absolute ABuilderFunction;
 begin
-  BuilderFunctions.Add(Strip_T_FormClassName(AClassName), {$IFNDEF DELPHIXE}TObject({$ENDIF}BuilderFunctionAsPointer{$IFNDEF DELPHIXE}){$ENDIF});
+  BuilderFunctions.AddOrSetValue(Strip_T_FormClassName(AClassName), TObject(BuilderFunctionAsPointer));
 end;
 
 procedure UnregisterBuildableSerializableClass(const AClassName : string);
 begin
-  {$IFNDEF DELPHIXE}
-  BuilderFunctions.Delete(Strip_T_FormClassName(AClassName));
-  {$ELSE}
   BuilderFunctions.Remove(Strip_T_FormClassName(AClassName));
-  {$ENDIF}
 end;
-
-{$IFNDEF DELPHIXE}
-{ TBuilderFunctionsDictionary }
-
-function TBuilderFunctionsDictionary.TryGetValue(const key: string; var
-    ABuilderFunction: TObjectBuilderFunction): Boolean;
-var
-  ABuilderFunctionAsObject : TObject absolute ABuilderFunction;
-begin
-  Result := Find(key, ABuilderFunctionAsObject);
-end;
-
-{ TClassPropInfoDictionaryDictionary }
-
-function TClassPropInfoDictionaryDictionary.TryGetValue(key: TClass; var
-    APropInfoDictionary: TPropInfosDictionary): Boolean;
-begin
-  Result := Find(integer(key), TObject(APropInfoDictionary));
-end;
-{$ENDIF}
 
 procedure DestroyPropInfosDictionaryCache;
 var
   i : integer;
-  {$IFDEF DELPHIXE}
-  PropInfosDictionary : TPropInfosDictionary;
-  {$ENDIF}
 begin
   for i := 0 to PropInfosDictionaryCacheTrackingList.Count - 1 do
-    begin
-      {$IFDEF DELPHIXE}
-      for PropInfosDictionary in TClassPropInfoDictionaryDictionary(PropInfosDictionaryCacheTrackingList[i]).Values do
-        PropInfosDictionary.Free;
-      {$ENDIF}
-      TClassPropInfoDictionaryDictionary(PropInfosDictionaryCacheTrackingList[i]).Free;
-    end;
+    TCnvIntegerDictionary(PropInfosDictionaryCacheTrackingList[i]).Free;
 end;
 
 initialization
   PropInfosDictionaryCacheTrackingListLock := TCriticalSection.Create;
   PropInfosDictionaryCacheTrackingList := TList.Create;
-  BuilderFunctions := TBuilderFunctionsDictionary.Create;
+  BuilderFunctions := TCnvStringDictionary.Create;
   Serializers := TClassPairList.Create;
   Deserializers := TClassPairList.Create;
   RegisterClassSerializer(TObject, TDefaultObjectBsonSerializer);

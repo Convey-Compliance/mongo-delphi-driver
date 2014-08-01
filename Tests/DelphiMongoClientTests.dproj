@@ -81,6 +81,7 @@
     <DCCReference Include="..\MongoPool.pas" />
     <DCCReference Include="..\MongoStream.pas" />
     <DCCReference Include="..\uAllocators.pas" />
+    <DCCReference Include="..\uCnvDictionary.pas" />
     <DCCReference Include="..\Ufilemanagement.pas" />
     <DCCReference Include="..\uPrimitiveAllocator.pas" />
     <DCCReference Include="..\uStack.pas" />
