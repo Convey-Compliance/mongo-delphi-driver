@@ -5,8 +5,11 @@
 interface
 
 uses
-  TestFramework, uLinkedListDefaultImplementor, uScope
-  {$IFNDEF VER130}, Variants{$EndIf}, MongoBsonSerializer, MongoBsonSerializableClasses;
+  TestFramework,
+  uLinkedListDefaultImplementor, uScope,
+  {$IFNDEF VER130}Variants,{$EndIf}
+  MongoBsonSerializer, MongoBsonSerializableClasses,
+  uCnvDictionary;
 
 type
   {$M+}
@@ -28,6 +31,7 @@ type
     procedure TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
     procedure TestSerializePrimitiveTypes;
     procedure DynamicArrayOfObjects;
+    procedure StringDictionary;
   end;
   {$M-}
 
@@ -46,6 +50,8 @@ type
   TIntSubObject = class
   private
     FTheInt: Integer;
+  public
+    constructor Create(ATheInt: Integer); overload;
   published
     property TheInt: Integer read FTheInt write FTheInt;
   end;
@@ -719,6 +725,71 @@ end;
 procedure TTestObjectWithObjectAsStringList.SetObjectAsStringList(const Value: TObjectAsStringList);
 begin
   FObjectAsStringList.Assign(Value);
+end;
+
+procedure TestTMongoBsonSerializer.StringDictionary;
+const
+  SUBOBJ_VAL = -1;
+  MAXINT = High(Integer);
+  TEST_STR = 'test str';
+  MIN_INT64 = Low(Int64);
+  BOOL = true;
+  DOUBLE_VAL = 666.666;
+  DELTA = 0.000001;
+var
+  dic, newDic: TCnvStringDictionary;
+  b: IBsonBuffer;
+  date: TDateTime;
+  subObj: TIntSubObject;
+  newInt: Integer;
+  newInt64: Int64;
+  newStr: string;
+  newBool: Boolean;
+  newDouble: Double;
+  newDate: TDateTime;
+begin
+  dic := TCnvStringDictionary.Create(true);
+
+  dic.AddOrSetValue('item1', TIntSubObject.Create(SUBOBJ_VAL));
+  dic.AddOrSetValue('item2', MAXINT);
+  dic.AddOrSetValue('item3', TEST_STR);
+  dic.AddOrSetValue('item4', MIN_INT64);
+  dic.AddOrSetValue('item5', BOOL);
+  dic.AddOrSetValue('item6', DOUBLE_VAL);
+  date := Now;
+  dic.AddOrSetValueDate('item7', date);
+
+  b := NewBsonBuffer;
+  FSerializer := CreateSerializer(TCnvStringDictionary);
+  FSerializer.Target := b;
+  FSerializer.Serialize('dict', dic);
+
+  newDic := TCnvStringDictionary.Create(true);
+  FDeserializer := CreateDeserializer(TCnvStringDictionary);
+  FDeserializer.Source := b.finish.find('dict').subiterator;
+  FDeserializer.Deserialize(TObject(newDic), nil);
+
+  Check(newDic.TryGetValue('item1', TObject(subObj)));
+  CheckEquals(SUBOBJ_VAL, subObj.TheInt);
+  Check(newDic.TryGetValue('item2', newInt));
+  CheckEquals(MAXINT, newInt);
+  Check(newDic.TryGetValue('item3', newStr));
+  CheckEquals(TEST_STR, newStr);
+  Check(newDic.TryGetValue('item4', newInt64));
+  CheckEquals(MIN_INT64, newInt64);
+  Check(newDic.TryGetValue('item5', newBool));
+  CheckEquals(BOOL, newBool);
+  Check(newDic.TryGetValue('item6', newDouble));
+  CheckEquals(DOUBLE_VAL, newDouble, DELTA);
+  Check(newDic.TryGetValueDate('item7', newDate));
+  CheckEquals(date, newDate, DELTA);
+end;
+
+{ TIntSubObject }
+
+constructor TIntSubObject.Create(ATheInt: Integer);
+begin
+  FTheInt := ATheInt;
 end;
 
 initialization

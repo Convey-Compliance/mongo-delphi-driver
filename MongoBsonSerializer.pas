@@ -54,7 +54,7 @@ type
 
   TPrimitivesBsonDeserializer = class(TBaseBsonDeserializer)
   private
-    function BuildObject(const _Type: string; AContext : Pointer): TObject;
+    class function BuildObject(const _Type: string; AContext : Pointer): TObject;
     procedure DeserializeIterator(var ATarget: TObject; AContext : Pointer);
     procedure DeserializeObject(p: PPropInfo; ATarget: TObject; AContext: Pointer); overload;
     procedure DeserializeObject(AObjClass: TClass; var AObj: TObject;
@@ -163,6 +163,18 @@ type
   TObjectAsStringListBsonDeserializer = class(TBaseBsonDeserializer)
   public
     procedure Deserialize(var ATarget: TObject; AContext: Pointer); override;
+  end;
+
+  TCnvStringDictionarySerializer = class(TBaseBsonSerializer)
+  private
+    procedure SerializeKeyValuePair(const AKey: string; const AValue: TObject);
+  public
+    procedure Serialize(const AName: String; ASource: TObject); override;
+  end;
+
+  TCnvStringDictionaryDeserializer = class(TBaseBsonDeserializer)
+  public
+    procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
   end;
 
 var
@@ -551,7 +563,7 @@ begin
   inherited Create;
 end;
 
-function TPrimitivesBsonDeserializer.BuildObject(const _Type: string; AContext: Pointer): TObject;
+class function TPrimitivesBsonDeserializer.BuildObject(const _Type: string; AContext: Pointer): TObject;
 var
   BuilderFn : TObjectBuilderFunction;
 begin
@@ -911,6 +923,90 @@ begin
     TCnvIntegerDictionary(PropInfosDictionaryCacheTrackingList[i]).Free;
 end;
 
+{ TCnvStringDictionarySerializer }
+
+procedure TCnvStringDictionarySerializer.SerializeKeyValuePair(const AKey: string;
+  const AValue: TObject);
+var
+  serializer: TBaseBsonSerializer;
+begin
+  if AValue is TPrimitiveWrapper then
+  begin
+    // serialize wrappers as primitives
+    if AValue is TStringWrapper then
+      Target.appendStr(AKey, TStringWrapper(AValue).Value)
+    else if AValue is TIntegerWrapper then
+      Target.append(AKey, TIntegerWrapper(AValue).Value)
+    else if AValue is TInt64Wrapper then
+      Target.append(AKey, TInt64Wrapper(AValue).Value)
+    else if AValue is TDoubleWrapper then
+      Target.append(AKey, TDoubleWrapper(AValue).Value)
+    else if AValue is TBooleanWrapper then
+      Target.append(AKey, TBooleanWrapper(AValue).Value)
+    else if AValue is TDateTimeWrapper then
+      Target.appendDate(AKey, TDateTimeWrapper(AValue).Value);
+  end
+  else
+  begin
+    // serialize object
+    serializer := CreateSerializer(AValue.ClassType);
+    try
+      serializer.Target := Target;
+      serializer.Serialize(AKey, AValue);
+    finally
+      serializer.Free;
+    end;
+  end;
+end;
+
+procedure TCnvStringDictionarySerializer.Serialize(const AName: String;
+  ASource: TObject);
+begin
+  if not (ASource is TCnvStringDictionary) then
+    Exit;
+
+  with Target do
+  begin
+    startObject(AName);
+    TCnvStringDictionary(ASource).Foreach(SerializeKeyValuePair);
+    finishObject;
+  end;
+end;
+
+{ TCnvStringDictionaryDeserializer }
+
+procedure TCnvStringDictionaryDeserializer.Deserialize(var ATarget: TObject;
+  AContext: Pointer);
+var
+  deserializer: TBaseBsonDeserializer;
+  obj: TObject;
+  it: IBsonIterator;
+begin
+  with TCnvStringDictionary(ATarget) do
+    while Source.next do
+      case Source.Kind of
+        bsonSTRING: AddOrSetValue(Source.key, Source.AsUTF8String);
+        bsonINT: AddOrSetValue(Source.key, Source.AsInteger);
+        bsonLONG: AddOrSetValue(Source.key, Source.AsInt64);
+        bsonDOUBLE: AddOrSetValue(Source.key, Source.AsDouble);
+        bsonBOOL: AddOrSetValue(Source.key, Source.AsBoolean);
+        bsonDATE: AddOrSetValueDate(Source.key, Source.AsDateTime);
+        bsonOBJECT:
+        begin
+          it := Source.subiterator;
+          obj := TPrimitivesBsonDeserializer.BuildObject(it.AsUTF8String, AContext);
+          deserializer := CreateDeserializer(TObject);
+          try
+            deserializer.Source := it;
+            deserializer.Deserialize(obj, AContext);
+          finally
+            deserializer.Free;
+          end;
+          AddOrSetValue(Source.key, obj);
+        end;
+      end;
+end;
+
 initialization
   PropInfosDictionaryCacheTrackingListLock := TCriticalSection.Create;
   PropInfosDictionaryCacheTrackingList := TList.Create;
@@ -921,16 +1017,20 @@ initialization
   RegisterClassSerializer(TStrings, TStringsBsonSerializer);
   RegisterClassSerializer(TStream, TStreamBsonSerializer);
   RegisterClassSerializer(TObjectAsStringList, TObjectAsStringListBsonSerializer);
+  RegisterClassSerializer(TCnvStringDictionary, TCnvStringDictionarySerializer);
   RegisterClassDeserializer(TObject, TPrimitivesBsonDeserializer);
   RegisterClassDeserializer(TStrings, TStringsBsonDeserializer);
   RegisterClassDeserializer(TStream, TStreamBsonDeserializer);
   RegisterClassDeserializer(TObjectAsStringList, TObjectAsStringListBsonDeserializer);
+  RegisterClassDeserializer(TCnvStringDictionary, TCnvStringDictionaryDeserializer);
 finalization
   DestroyPropInfosDictionaryCache;
+  UnRegisterClassDeserializer(TCnvStringDictionary, TCnvStringDictionaryDeserializer);
   UnRegisterClassDeserializer(TStream, TStreamBsonDeserializer);
   UnRegisterClassDeserializer(TObject, TPrimitivesBsonDeserializer);
   UnRegisterClassDeserializer(TStrings, TStringsBsonDeserializer);
   UnRegisterClassDeserializer(TObjectAsStringList, TObjectAsStringListBsonDeserializer);
+  UnRegisterClassSerializer(TCnvStringDictionary, TCnvStringDictionarySerializer);
   UnRegisterClassSerializer(TStream, TStreamBsonSerializer);
   UnRegisterClassSerializer(TStrings, TStringsBsonSerializer);
   UnRegisterClassSerializer(TObject, TDefaultObjectBsonSerializer);
