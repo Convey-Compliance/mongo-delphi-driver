@@ -952,7 +952,9 @@ begin
     else if AValue is TBooleanWrapper then
       Target.append(AKey, TBooleanWrapper(AValue).Value)
     else if AValue is TDateTimeWrapper then
-      Target.appendDate(AKey, TDateTimeWrapper(AValue).Value);
+      Target.appendDate(AKey, TDateTimeWrapper(AValue).Value)
+    else
+      raise Exception.Create('Unable to serialize primitive wrapper');
   end
   else
   begin
@@ -1012,6 +1014,8 @@ begin
           end;
           AddOrSetValue(Source.key, obj);
         end;
+        else
+          raise Exception.Create('Unable to deserialize primitive wrapper');
       end;
 end;
 
