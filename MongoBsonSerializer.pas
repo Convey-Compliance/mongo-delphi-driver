@@ -328,14 +328,18 @@ begin
 
   TypeData := GetAndCheckTypeData(AObj.ClassType);
   GetPropList(AObj, PropList);
-  Result := TCnvStringDictionary.Create;
   try
-    for i := 0 to TypeData.PropCount - 1 do
-      Result.AddOrSetValue(PropList[i].Name, TObject(PropList[i]));
-    GetPropInfosDictionaryDictionary.AddOrSetValue(Integer(AObj.ClassType), Result);
-  except
-    Result.Free;
-    raise;
+    Result := TCnvStringDictionary.Create;
+    try
+      for i := 0 to TypeData.PropCount - 1 do
+        Result.AddOrSetValue(PropList[i].Name, TObject(PropList[i]));
+      GetPropInfosDictionaryDictionary.AddOrSetValue(Integer(AObj.ClassType), Result);
+    except
+      Result.Free;
+      raise;
+    end;
+  finally
+    FreeMem(PropList);
   end;
 end;
 
@@ -361,8 +365,12 @@ var
 begin
   TypeData := GetAndCheckTypeData(ASource.ClassType);
   GetPropList(ASource, list);
-  for i := 0 to TypeData.PropCount - 1 do
-    SerializePropInfo(list[i], ASource);
+  try
+    for i := 0 to TypeData.PropCount - 1 do
+      SerializePropInfo(list[i], ASource);
+  finally
+    FreeMem(list);
+  end;
 end;
 
 procedure TPrimitivesBsonSerializer.SerializePropInfo(APropInfo: PPropInfo;
