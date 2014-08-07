@@ -2,9 +2,11 @@ unit uCnvDictionary;
 
 interface
 
-{$IF CompilerVersion >= 21.0}
-  {$DEFINE HAS_GENERICS}
-{$IFEND}
+{$IFNDEF VER130}
+  {$IF CompilerVersion >= 21.0}
+    {$DEFINE HAS_GENERICS}
+  {$IFEND}
+{$ENDIF}
 
 uses
   {$IFDEF HAS_GENERICS}System.Generics.Collections{$ELSE}HashTrie{$ENDIF},
@@ -563,3 +565,4 @@ begin
 end;
 
 end.
+

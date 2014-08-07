@@ -328,14 +328,18 @@ begin
 
   TypeData := GetAndCheckTypeData(AObj.ClassType);
   GetPropList(AObj, PropList);
-  Result := TCnvStringDictionary.Create;
   try
-    for i := 0 to TypeData.PropCount - 1 do
-      Result.AddOrSetValue(PropList[i].Name, TObject(PropList[i]));
-    GetPropInfosDictionaryDictionary.AddOrSetValue(Integer(AObj.ClassType), Result);
-  except
-    Result.Free;
-    raise;
+    Result := TCnvStringDictionary.Create;
+    try
+      for i := 0 to TypeData.PropCount - 1 do
+        Result.AddOrSetValue(PropList[i].Name, TObject(PropList[i]));
+      GetPropInfosDictionaryDictionary.AddOrSetValue(Integer(AObj.ClassType), Result);
+    except
+      Result.Free;
+      raise;
+    end;
+  finally
+    FreeMem(PropList);
   end;
 end;
 
@@ -361,8 +365,12 @@ var
 begin
   TypeData := GetAndCheckTypeData(ASource.ClassType);
   GetPropList(ASource, list);
-  for i := 0 to TypeData.PropCount - 1 do
-    SerializePropInfo(list[i], ASource);
+  try
+    for i := 0 to TypeData.PropCount - 1 do
+      SerializePropInfo(list[i], ASource);
+  finally
+    FreeMem(list);
+  end;
 end;
 
 procedure TPrimitivesBsonSerializer.SerializePropInfo(APropInfo: PPropInfo;
@@ -944,7 +952,9 @@ begin
     else if AValue is TBooleanWrapper then
       Target.append(AKey, TBooleanWrapper(AValue).Value)
     else if AValue is TDateTimeWrapper then
-      Target.appendDate(AKey, TDateTimeWrapper(AValue).Value);
+      Target.appendDate(AKey, TDateTimeWrapper(AValue).Value)
+    else
+      raise Exception.Create('Unable to serialize primitive wrapper');
   end
   else
   begin
@@ -1004,6 +1014,8 @@ begin
           end;
           AddOrSetValue(Source.key, obj);
         end;
+        else
+          raise Exception.Create('Unable to deserialize primitive wrapper');
       end;
 end;
 
