@@ -275,7 +275,7 @@ function TCnvStringDictionary.TryGetValue(const AKey: string;
 var
   wrap: TIntegerWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -285,7 +285,7 @@ function TCnvStringDictionary.TryGetValue(const AKey: string;
 var
   wrap: TStringWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -295,7 +295,7 @@ function TCnvStringDictionary.TryGetValue(const AKey: string;
 var
   wrap: TInt64Wrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -305,7 +305,7 @@ function TCnvStringDictionary.TryGetValue(const AKey: string;
 var
   wrap: TDoubleWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -315,7 +315,7 @@ function TCnvStringDictionary.TryGetValue(const AKey: string;
 var
   wrap: TBooleanWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -325,7 +325,7 @@ function TCnvStringDictionary.TryGetValueDate(const AKey: string;
 var
   wrap: TDateTimeWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -467,7 +467,7 @@ function TCnvIntegerDictionary.TryGetValue(const AKey: Integer;
 var
   wrap: TIntegerWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -477,7 +477,7 @@ function TCnvIntegerDictionary.TryGetValue(const AKey: Integer;
 var
   wrap: TStringWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -487,7 +487,7 @@ function TCnvIntegerDictionary.TryGetValue(const AKey: Integer;
 var
   wrap: TInt64Wrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -497,7 +497,7 @@ function TCnvIntegerDictionary.TryGetValue(const AKey: Integer;
 var
   wrap: TDoubleWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -507,7 +507,7 @@ function TCnvIntegerDictionary.TryGetValue(const AKey: Integer;
 var
   wrap: TBooleanWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
@@ -517,7 +517,7 @@ function TCnvIntegerDictionary.TryGetValueDate(const AKey: Integer;
 var
   wrap: TDateTimeWrapper;
 begin
-  Result := TryGetValue(AKey, TObject(wrap));
+  Result := TryGetValue(AKey, TObject(wrap)) and (wrap <> nil);
   if Result then
     AValue := wrap.Value;
 end;
