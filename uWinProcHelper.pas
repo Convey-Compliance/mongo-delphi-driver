@@ -9,6 +9,7 @@ uses
 
 function KillProcess(const aProcess: string): Boolean;
 function GetProcessHandle(const AProcess : string; dwDesiredAccess : DWORD): THandle;
+function IsProcessRunning(const AProcess: string): Boolean;
 
 implementation
 
@@ -62,6 +63,11 @@ begin
   finally
     CloseHandle (SnapshotHandle);
   end;
+end;
+
+function IsProcessRunning(const AProcess: string): Boolean;
+begin
+  Result := (GetProcessHandle(AProcess, PROCESS_ALL_ACCESS)) <> 0;
 end;
 
 end.
