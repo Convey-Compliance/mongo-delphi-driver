@@ -252,6 +252,7 @@ type
   { TBsonIterators are used to step through the fields of a TBson document. }
   IBsonIterator = interface
     ['{BB81B815-9B18-43B7-A894-2FBE4F9B7562}']
+    function Find(const Name: UTF8String): Boolean;
     function GetAsInt64: Int64;
     function GetAsUTF8String : UTF8String;
     function GetAsInteger: Integer;
@@ -489,7 +490,6 @@ resourcestring
   SArrayComponentIsNotADouble = 'Array component is not a Double (D%d)';
   SArrayComponentIsNotAString = 'Array component is not a string (D%d)';
   SArrayComponentIsNotABoolean = 'Array component is not a Boolean (D%d)';
-  SBsonBufferAlreadyFinished = 'BsonBuffer already finished (D%d)';
   STBsonAppendVariantTypeNotSupport = 'TBson.append(variant): type not supported (%s) (D%d)';
   SUNDEFINED = 'UNDEFINED';
   SNULL = 'NULL';
@@ -555,6 +555,7 @@ type
     procedure prepareArrayIterator(var i: IBsonIterator; var j, count: Integer;
         BSonType: TBsonType; const ATypeErrorMsg: UTF8String);
   public
+    function Find(const Name: UTF8String): Boolean;
     function getHandle: Pointer;
     function kind: TBsonType;
     function key: UTF8String;
@@ -622,7 +623,6 @@ type
     function appendDoubleCallback(i: Integer; const Arr): Boolean;
     function appendBooleanCallback(i: Integer; const Arr): Boolean;
     function appendStringCallback(i: Integer; const Arr): Boolean;
-    procedure checkBsonBuffer;
     function internalAppendArray(const Name: UTF8String; const Arr; Len: Integer;
         AppendElementCallback: Pointer): Boolean;
     class function UTF8StringFromTVarRec(const AVarRec: TVarRec): UTF8String;
@@ -847,6 +847,17 @@ end;
 procedure TBsonIterator.ErrorIteratorAtEnd(const AFnName: String);
 begin
   raise EMongo.Create(SErrorCallingIteratorAtEnd, AFnName, E_ErrorCallingIteratorAtEnd);
+end;
+
+function TBsonIterator.Find(const Name: UTF8String): Boolean;
+begin
+  while next do
+    if key = Name then
+    begin
+      Result := true;
+      Exit;
+    end;
+  Result := false;
 end;
 
 function TBsonIterator.getAsInt64: Int64;
@@ -1122,37 +1133,31 @@ end;
 
 function TBsonBuffer.appendStr(const Name, Value: UTF8String): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_string(Handle, PAnsiChar(Name), PAnsiChar(Value)) = 0);
 end;
 
 function TBsonBuffer.appendCode(const Name, Value: UTF8String): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_code(Handle, PAnsiChar(Name), PAnsiChar(Value)) = 0);
 end;
 
 function TBsonBuffer.appendSymbol(const Name, Value: UTF8String): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_symbol(Handle, PAnsiChar(Name), PAnsiChar(Value)) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: Integer): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_int(Handle, PAnsiChar(Name), Value) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: Int64): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_long(Handle, PAnsiChar(Name), Value) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: Double): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_double(Handle, PAnsiChar(Name), Value) = 0);
 end;
 
@@ -1166,46 +1171,39 @@ end;
 function TBsonBuffer.appendDate(const Name: UTF8String; Value: TDateTime):
     Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_date(Handle, PAnsiChar(Name), Trunc((Value - DATE_ADJUSTER) * 1000 * 60 * 60 * 24)) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: Boolean): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_bool(Handle, PAnsiChar(Name), Value) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonOID): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_oid(Handle, PAnsiChar(Name), Value.getValue) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonCodeWScope):
     Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_code_w_scope(Handle, PAnsiChar(Name), PAnsiChar(Value.getCode), Value.getScope.Handle) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonRegex): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_regex(Handle, PAnsiChar(Name), PAnsiChar(Value.getPattern), PAnsiChar(Value.getOptions)) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonTimestamp):
     Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_timestamp2(Handle, PAnsiChar(Name), Trunc((Value.getTime - DATE_ADJUSTER) * 60 * 60 * 24), Value.getIncrement) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonBinary):
     Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_binary(Handle, PAnsiChar(Name), Value.getKind, Value.getData, Value.getLen) = 0);
 end;
 
@@ -1265,26 +1263,22 @@ end;
 
 function TBsonBuffer.appendNull(const Name: UTF8String): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_null(Handle, PAnsiChar(Name)) = 0);
 end;
 
 function TBsonBuffer.appendUndefined(const Name: UTF8String): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_undefined(Handle, PAnsiChar(Name)) = 0);
 end;
 
 function TBsonBuffer.appendBinary(const Name: UTF8String; Kind: Integer; Data:
     Pointer; Length: Integer): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_binary(Handle, PAnsiChar(Name), Kind, Data, Length) = 0);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBson): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_bson(Handle, PAnsiChar(Name), Value.Handle) = 0);
 end;
 
@@ -1359,7 +1353,6 @@ end;
 function TBsonBuffer.appendCode_n(const Name, Value: UTF8String; Len:
     Cardinal): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_code_n(Handle, PAnsiChar(Name), PAnsiChar(Value), Len) = 0);
 end;
 
@@ -1507,50 +1500,39 @@ end;
 function TBsonBuffer.appendStr_n(const Name, Value: UTF8String; Len: Cardinal):
     Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_string_n(Handle, PAnsiChar(Name), PAnsiChar(Value), Len) = 0);
 end;
 
 function TBsonBuffer.appendSymbol_n(const Name, Value: UTF8String; Len:
     Cardinal): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_symbol_n(Handle, PAnsiChar(Name), PAnsiChar(Value), Len) = 0);
-end;
-
-procedure TBsonBuffer.checkBsonBuffer;
-begin
-  if Handle = nil then
-    raise Exception.Create(SBsonBufferAlreadyFinished);
 end;
 
 function TBsonBuffer.startObject(const Name: UTF8String): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_start_object(Handle, PAnsiChar(Name)) = 0);
 end;
 
 function TBsonBuffer.startArray(const Name: UTF8String): Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_start_array(Handle, PAnsiChar(Name)) = 0);
 end;
 
 function TBsonBuffer.finishObject: Boolean;
 begin
-  checkBsonBuffer;
   Result := (bson_append_finish_object(Handle) = 0);
 end;
 
 function TBsonBuffer.size: Integer;
 begin
-  checkBsonBuffer;
   Result := bson_buffer_size(Handle);
 end;
 
 function TBsonBuffer.finish: IBson;
 begin
-  checkBsonBuffer;
+  if Handle = nil then
+    Exit;
   if bson_finish(Handle) = 0 then
   begin
     Result := NewBson(Handle, FOwnsHandle);

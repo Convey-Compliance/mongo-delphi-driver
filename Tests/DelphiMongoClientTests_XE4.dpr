@@ -37,17 +37,12 @@ uses
   MongoDB in '..\MongoDB.pas',
   MongoPool in '..\MongoPool.pas',
   MongoStream in '..\MongoStream.pas',
-  Ufilemanagement in '..\Ufilemanagement.pas',
-  uStack in '..\uStack.pas',
-  TestuStack in 'TestuStack.pas',
-  uPrimitiveAllocator in '..\uPrimitiveAllocator.pas',
-  TestuPrimitiveAllocator in 'TestuPrimitiveAllocator.pas',
-  TestuAllocators in 'TestuAllocators.pas',
   uAllocators,
   LibBsonAPI in '..\LibBsonAPI.pas',
   TestMongoBsonSerializer in 'TestMongoBsonSerializer.pas',
   MongoBsonSerializer in '..\MongoBsonSerializer.pas',
-  MongoBsonSerializableClasses in '..\MongoBsonSerializableClasses.pas';
+  MongoBsonSerializableClasses in '..\MongoBsonSerializableClasses.pas',
+  uCnvDictionary in '..\uCnvDictionary.pas';
 
 {$R *.RES}
 

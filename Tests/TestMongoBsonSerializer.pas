@@ -5,7 +5,11 @@
 interface
 
 uses
-  TestFramework{$IFNDEF VER130}, Variants{$EndIf}, MongoBsonSerializer, MongoBsonSerializableClasses;
+  TestFramework,
+  uLinkedListDefaultImplementor, uScope,
+  {$IFNDEF VER130}Variants,{$EndIf}
+  MongoBsonSerializer, MongoBsonSerializableClasses,
+  uCnvDictionary;
 
 type
   {$M+}
@@ -13,15 +17,21 @@ type
   private
     FSerializer: TBaseBsonSerializer;
     FDeserializer : TBaseBsonDeserializer;
+    FScope: IScope;
   public
     procedure SetUp; override;
     procedure TearDown; override;
   published
-    procedure TestCreateDeserializer(FSerializer: TBaseBsonSerializer; const Value:
-        string);
+    procedure TestCreateDeserializer(FSerializer: TBaseBsonSerializer;
+                                     const Value: string);
     procedure TestCreateSerializer;
     procedure TestSerializeObjectAsStringList_Flat;
+    procedure TestSerializeObjectDeserializeWithDynamicBuilding;
+    procedure TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
+    procedure TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
     procedure TestSerializePrimitiveTypes;
+    procedure DynamicArrayOfObjects;
+    procedure StringDictionary;
   end;
   {$M-}
 
@@ -35,16 +45,21 @@ type
   TEnumerationSet = set of TEnumeration;
   TDynIntArr = array of Integer;
   TDynIntArrArr = array of array of Integer;
+
   {$M+}
-  TSubObject = class
+  TIntSubObject = class
   private
     FTheInt: Integer;
+  public
+    constructor Create(ATheInt: Integer); overload;
   published
     property TheInt: Integer read FTheInt write FTheInt;
   end;
 
   TTestObject = class
   private
+    FContext: Pointer;
+    F_a: NativeUInt;
     FThe_02_AnsiChar: AnsiChar;
     FThe_00_Int: Integer;
     FThe_01_Int64: Int64;
@@ -53,7 +68,7 @@ type
     FThe_05_String: String;
     FThe_06_ShortString: ShortString;
     FThe_07_Set: TEnumerationSet;
-    FThe_08_SubObject: TSubObject;
+    FThe_08_SubObject: TIntSubObject;
     FThe_09_DynIntArr: TDynIntArr;
     FThe_10_WChar: WideChar;
     FThe_11_AnsiString: AnsiString;
@@ -73,6 +88,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    property Context: Pointer read FContext write FContext;
   published
     property The_00_Int: Integer read FThe_00_Int write FThe_00_Int;
     property The_01_Int64: Int64 read FThe_01_Int64 write FThe_01_Int64;
@@ -82,7 +98,7 @@ type
     property The_05_String: String read FThe_05_String write FThe_05_String;
     property The_06_ShortString: ShortString read FThe_06_ShortString write FThe_06_ShortString;
     property The_07_Set: TEnumerationSet read FThe_07_Set write FThe_07_Set;
-    property The_08_SubObject: TSubObject read FThe_08_SubObject write FThe_08_SubObject;
+    property The_08_SubObject: TIntSubObject read FThe_08_SubObject write FThe_08_SubObject;
     property The_09_DynIntArr: TDynIntArr read FThe_09_DynIntArr write FThe_09_DynIntArr;
     property The_10_WChar: WideChar read FThe_10_WChar write FThe_10_WChar;
     property The_11_AnsiString: AnsiString read FThe_11_AnsiString write FThe_11_AnsiString;
@@ -99,6 +115,7 @@ type
     property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
     property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
     property The_24_DynIntArrArr: TDynIntArrArr read FThe_24_DynIntArrArr write FThe_24_DynIntArrArr;
+    property _a: NativeUInt read F_a write F_a;
   end;
 
   TTestObjectWithObjectAsStringList = class
@@ -111,12 +128,21 @@ type
   published
     property ObjectAsStringList: TObjectAsStringList read FObjectAsStringList write SetObjectAsStringList;
   end;
+
+  TSubObjectArray = array of TIntSubObject;
+
+  TDynamicArrayOfObjectsContainer = class
+  private
+    FArr: TSubObjectArray;
+  published
+    property Arr: TSubObjectArray read FArr write FArr;
+  end;
   {$M-}
 
 constructor TTestObject.Create;
 begin
   inherited Create;
-  FThe_08_SubObject := TSubObject.Create;
+  FThe_08_SubObject := TIntSubObject.Create;
   FThe_13_StringList := TStringList.Create;
   FThe_21_MemStream := TMemoryStream.Create;
   FThe_22_BlankMemStream := TMemoryStream.Create;
@@ -135,6 +161,7 @@ procedure TestTMongoBsonSerializer.SetUp;
 begin
   FSerializer := CreateSerializer(TObject);
   FDeserializer := CreateDeserializer(TObject);
+  FScope := NewScope;
 end;
 
 procedure TestTMongoBsonSerializer.TearDown;
@@ -163,17 +190,18 @@ begin
   FSerializer.Target := NewBsonBuffer();
   TestObject1 := TTestObjectWithObjectAsStringList.Create();
   try
-    FSerializer.Source := TestObject1;
     TestObject1.ObjectAsStringList.Add('Name1=Value1');
     TestObject1.ObjectAsStringList.Add('Name2=Value2');
     TestObject1.ObjectAsStringList.Add('Name3=Value3');
     TestObject1.ObjectAsStringList.Add('Name4=Value4');
     TestObject1.ObjectAsStringList.Add('Name5=Value5');
 
-    FSerializer.Serialize('');
+    FSerializer.Serialize('', TestObject1);
 
     b := FSerializer.Target.finish;
     it := NewBsonIterator(b);
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('_type', it.key);
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('ObjectAsStringList', it.key);
     Check(it.Kind = bsonObject, 'Type of iterator value should be bsonObject');
@@ -191,8 +219,7 @@ begin
     TestObject2 := TTestObjectWithObjectAsStringList.Create;
     try
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Target := TestObject2;
-      FDeserializer.Deserialize;
+      FDeserializer.Deserialize(TObject(TestObject2), nil);
 
       CheckEquals('Name1=Value1', TestObject2.ObjectAsStringList[0]);
       CheckEquals('Name5=Value5', TestObject2.ObjectAsStringList[4]);
@@ -201,6 +228,90 @@ begin
     end;
   finally
     FreeAndNil(TestObject1);
+  end;
+end;
+
+function BuildTTestObject(const AClassName: string; AContext: Pointer): TObject;
+begin
+  Result := TTestObject.Create;
+  (Result as TTestObject).Context := AContext;
+end;
+
+procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    AObj.The_00_Int := 123;
+    FSerializer.Target := NewBsonBuffer();
+    FSerializer.Serialize('', AObj);
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  FDeserializer.Source := FSerializer.Target.finish.iterator;
+  RegisterBuildableSerializableClass(TTestObject.ClassName, BuildTTestObject);
+  try
+    FDeserializer.Deserialize(TObject(AObj), pointer(1234));
+    Check(AObj <> nil, 'Object returned from deserialization must be <> nil');
+    CheckEquals(123, AObj.The_00_Int, 'The_00_Int attribute should be equals to 123');
+    CheckEquals(1234, NativeUInt(AObj.Context), 'property Context should be equals to 1234');
+  finally
+    UnregisterBuildableSerializableClass(TTestObject.ClassName);
+  end;
+end;
+
+function BuildTIntSubObject(const AClassName: string; AContext: Pointer): TObject;
+begin
+  Result := TIntSubObject.Create;
+end;
+
+procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    AObj.The_00_Int := 123;
+    FSerializer.Target := NewBsonBuffer();
+    FSerializer.Serialize('', AObj);
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  FDeserializer.Source := FSerializer.Target.finish.iterator;
+  try
+    FDeserializer.Deserialize(TObject(AObj), nil);
+    Fail('Should have raised exception that it cound not find suitable builder for class TestObject');
+  except
+    on E : Exception do CheckEqualsString('Suitable builder not found for class <TestObject>', E.Message);
+  end;
+end;
+
+procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
+var
+  AObj : TTestObject;
+begin
+  AObj := TTestObject.Create;
+  try
+    FSerializer.Target := NewBsonBuffer();
+    AObj.The_08_SubObject.TheInt := 123;
+    FSerializer.Serialize('', AObj);
+  finally
+    AObj.Free;
+  end;
+  AObj := nil;
+  AObj := TTestObject.Create;
+  try
+    AObj.The_08_SubObject.Free;
+    AObj.The_08_SubObject := nil;
+    FDeserializer.Source := FSerializer.Target.finish.iterator;
+    FDeserializer.Deserialize(TObject(AObj), nil);
+    Check(AObj.The_08_SubObject <> nil, 'AObj.The_08_SubObject must be <> nil after deserialization');
+    CheckEquals(123, AObj.The_08_SubObject.TheInt, 'The_00_Int attribute should be equals to 123');
+  finally
+    AObj.Free;
   end;
 end;
 
@@ -222,7 +333,6 @@ begin
   FSerializer.Target := NewBsonBuffer();
   Obj := TTestObject.Create;
   try
-    FSerializer.Source := Obj;
     Obj.The_00_Int := 10;
     Obj.The_01_Int64 := 11;
     Obj.The_02_AnsiChar := 'B';
@@ -279,10 +389,12 @@ begin
     dynIntArrArr[1, 1] := 4;
     Obj.The_24_DynIntArrArr := dynIntArrArr;
 
-    FSerializer.Serialize('');
+    FSerializer.Serialize('', Obj);
 
-    b := FSerializer.Target.finish;                             // b.display; exit;
+    b := FSerializer.Target.finish;
     it := NewBsonIterator(b);
+    CheckTrue(it.Next, 'Iterator should not be at end');
+    CheckEqualsString('_type', it.key);
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_00_Int', it.key);
     CheckEquals(10, it.value, 'Iterator should be equals to 10');
@@ -329,7 +441,9 @@ begin
     CheckEqualsString('The_08_SubObject', it.key);
     Check(it.Kind = bsonOBJECT, 'Type of iterator value should be bsonOBJECT');
     SubIt := it.subiterator;
-    CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
+    CheckTrue(Subit.Next, 'SubIterator should not be at end');
+    CheckEqualsString('_type', Subit.key);
+    CheckTrue(SubIt.Next, 'SubIterator should not be at end');
     CheckEquals(12, SubIt.Value, 'Iterator should be equals to 12');
     Check(not SubIt.next, 'Iterator should be at end');
 
@@ -456,6 +570,9 @@ begin
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(4, SubSubIt.Value, 'Iterator should be equals to 22');
 
+    CheckTrue(it.Next, 'Array SubIterator should not be at end');
+    CheckEquals(0, it.Value, 'Iterator should be equals to 0'); // property _a
+
     Check(not it.next, 'Iterator should be at end');
 
     Obj2 := TTestObject.Create;
@@ -467,8 +584,7 @@ begin
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := NewBsonIterator(b);
-      FDeserializer.Target := Obj2;
-      FDeserializer.Deserialize;
+      FDeserializer.Deserialize(TObject(Obj2), nil);
 
       CheckEquals(10, obj2.The_00_Int, 'Value of The_00_Int doesn''t match');
       CheckEquals(11, obj2.The_01_Int64, 'Value of The_01_Int64 doesn''t match');
@@ -539,6 +655,61 @@ begin
   end;
 end;
 
+procedure TestTMongoBsonSerializer.DynamicArrayOfObjects;
+var
+  obj, deserializedObj: TDynamicArrayOfObjectsContainer;
+  arr: TSubObjectArray;
+  I: Integer;
+  b: IBson;
+  it, subit: IBsonIterator;
+begin
+  SetLength(arr, 3);
+  for I := 0 to Length(arr) - 1 do
+  begin
+    arr[I] := TIntSubObject.Create;
+    arr[I].TheInt := 5 + I;
+  end;
+  obj := FScope.Add(TDynamicArrayOfObjectsContainer.Create);
+  obj.Arr := arr;
+
+  FSerializer.Target := NewBsonBuffer;
+  FSerializer.Serialize('', obj);
+
+  b := FSerializer.Target.finish;
+  it := NewBsonIterator(b);
+
+  Check(it.next);
+  Check(bsonSTRING = it.Kind);
+  CheckEqualsString('DynamicArrayOfObjectsContainer', it.AsUTF8String);
+  Check(it.next);
+
+  Check(bsonARRAY = it.Kind);
+  CheckEqualsString('Arr', it.key);
+  subit := it.subiterator;
+  for I := 0 to Length(arr) - 1 do
+  begin
+    Check(bsonOBJECT = subit.Kind);
+    Check(subit.next);
+    with subit.subiterator do
+    begin
+      Check(next);
+      CheckEqualsString('IntSubObject', AsUTF8String);
+      Check(next);
+      CheckEquals(arr[I].TheInt, AsInteger);
+      CheckFalse(next);
+    end;
+  end;
+  CheckFalse(subit.next);
+  CheckFalse(it.next);
+
+  deserializedObj := TDynamicArrayOfObjectsContainer.Create;
+  FDeserializer.Source := NewBsonIterator(b);
+  FDeserializer.Deserialize(TObject(deserializedObj), nil);
+
+  for I := 0 to Length(obj.Arr) - 1 do
+    CheckEquals(obj.Arr[I].TheInt, deserializedObj.Arr[I].TheInt);
+end;
+
 constructor TTestObjectWithObjectAsStringList.Create;
 begin
   inherited Create;
@@ -556,8 +727,77 @@ begin
   FObjectAsStringList.Assign(Value);
 end;
 
+procedure TestTMongoBsonSerializer.StringDictionary;
+const
+  SUBOBJ_VAL = -1;
+  MAXINT = High(Integer);
+  TEST_STR = 'test str';
+  MIN_INT64 = Low(Int64);
+  BOOL = true;
+  DOUBLE_VAL = 666.666;
+  DELTA = 0.000001;
+var
+  dic, newDic: TCnvStringDictionary;
+  b: IBsonBuffer;
+  date: TDateTime;
+  subObj: TIntSubObject;
+  newInt: Integer;
+  newInt64: Int64;
+  newStr: string;
+  newBool: Boolean;
+  newDouble: Double;
+  newDate: TDateTime;
+begin
+  dic := TCnvStringDictionary.Create(true);
+
+  dic.AddOrSetValue('item1', TIntSubObject.Create(SUBOBJ_VAL));
+  dic.AddOrSetValue('item2', MAXINT);
+  dic.AddOrSetValue('item3', TEST_STR);
+  dic.AddOrSetValue('item4', MIN_INT64);
+  dic.AddOrSetValue('item5', BOOL);
+  dic.AddOrSetValue('item6', DOUBLE_VAL);
+  date := Now;
+  dic.AddOrSetValueDate('item7', date);
+
+  b := NewBsonBuffer;
+  FSerializer := CreateSerializer(TCnvStringDictionary);
+  FSerializer.Target := b;
+  FSerializer.Serialize('dict', dic);
+
+  newDic := TCnvStringDictionary.Create(true);
+  FDeserializer := CreateDeserializer(TCnvStringDictionary);
+  FDeserializer.Source := b.finish.find('dict').subiterator;
+  FDeserializer.Deserialize(TObject(newDic), nil);
+
+  Check(newDic.TryGetValue('item1', TObject(subObj)));
+  CheckEquals(SUBOBJ_VAL, subObj.TheInt);
+  Check(newDic.TryGetValue('item2', newInt));
+  CheckEquals(MAXINT, newInt);
+  Check(newDic.TryGetValue('item3', newStr));
+  CheckEquals(TEST_STR, newStr);
+  Check(newDic.TryGetValue('item4', newInt64));
+  CheckEquals(MIN_INT64, newInt64);
+  Check(newDic.TryGetValue('item5', newBool));
+  CheckEquals(BOOL, newBool);
+  Check(newDic.TryGetValue('item6', newDouble));
+  CheckEquals(DOUBLE_VAL, newDouble, DELTA);
+  Check(newDic.TryGetValueDate('item7', newDate));
+  CheckEquals(date, newDate, DELTA);
+end;
+
+{ TIntSubObject }
+
+constructor TIntSubObject.Create(ATheInt: Integer);
+begin
+  FTheInt := ATheInt;
+end;
+
 initialization
-  // Register any test cases with the test runner
+  RegisterBuildableSerializableClass(TIntSubObject.ClassName, BuildTIntSubObject);
+
   RegisterTest(TestTMongoBsonSerializer.Suite);
+
+finalization
+  UnregisterBuildableSerializableClass(TIntSubObject.ClassName);
 end.
 

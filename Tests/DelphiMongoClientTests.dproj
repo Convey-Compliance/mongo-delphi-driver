@@ -49,10 +49,13 @@
     <DCC_UNIT_EXPERIMENTAL>False</DCC_UNIT_EXPERIMENTAL>
     <DCC_TYPEINFO_IMPLICITLY_ADDED>False</DCC_TYPEINFO_IMPLICITLY_ADDED>
     <DCC_ExeOutput>..\..\..\bin\Win32\Debug</DCC_ExeOutput>
-    <DCC_UnitSearchPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_UnitSearchPath>
-    <DCC_ResourcePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ResourcePath>
-    <DCC_ObjPath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ObjPath>
-    <DCC_IncludePath>..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_IncludePath>
+    <DCC_UnitSearchPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_UnitSearchPath>
+    <DCC_ResourcePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ResourcePath>
+    <DCC_ObjPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_ObjPath>
+    <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;..\..\delphi-fastmm\;..\;$(BDS)\Source\DUnit\src;$(BDS)\Source\dUnit\Contrib\XMLReporting;..\..\convey-private-libs;..\..\convey-public-libs</DCC_IncludePath>
+    <DCC_Optimize>False</DCC_Optimize>
+    <DCC_DebugInfoInExe>True</DCC_DebugInfoInExe>
+    <DCC_DebugVN>True</DCC_DebugVN>
   </PropertyGroup>
   <ProjectExtensions>
     <Borland.Personality>Delphi.Personality</Borland.Personality>
@@ -78,6 +81,7 @@
     <DCCReference Include="..\MongoPool.pas" />
     <DCCReference Include="..\MongoStream.pas" />
     <DCCReference Include="..\uAllocators.pas" />
+    <DCCReference Include="..\uCnvDictionary.pas" />
     <DCCReference Include="..\Ufilemanagement.pas" />
     <DCCReference Include="..\uPrimitiveAllocator.pas" />
     <DCCReference Include="..\uStack.pas" />
