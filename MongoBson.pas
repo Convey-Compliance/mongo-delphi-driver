@@ -28,7 +28,7 @@ unit MongoBson;
 interface
 
 uses
-  MongoAPI, uPrimitiveAllocator;
+  MongoAPI, uPrimitiveAllocator, SysUtils;
 
 const
   E_WasNotExpectingCloseOfObjectOper    = 90100;
@@ -69,6 +69,15 @@ type
   {$IFNDEF DELPHI2007}
   PByte = ^Byte;
   {$ENDIF}
+
+  EBson = class(Exception)
+  private
+    FErrorCode: Integer;
+  public
+    constructor Create(const AMsg: string; ACode: Integer); overload;
+    constructor Create(const AMsg, AStrParam: string; ACode: Integer); overload;
+    property ErrorCode: Integer read FErrorCode;
+  end;
 
   { A TBsonOID is used to store BSON Object IDs.
     See http://www.mongodb.org/display/DOCS/Object+IDs }
@@ -453,7 +462,8 @@ function Null_Element : TObject;
 implementation
 
 uses
-  SysUtils{$IFNDEF VER130}, Variants{$ENDIF}, Windows, MongoDB,
+  Windows,
+  {$IFNDEF VER130}Variants{$ENDIF},
   LibBsonApi,
   uStack;
 
@@ -723,6 +733,20 @@ begin
 end;
 {$ENDIF}
 
+{ EBson }
+
+constructor EBson.Create(const AMsg: string; ACode: Integer);
+begin
+  inherited CreateFmt(AMsg, [ACode]);
+  FErrorCode := ACode;
+end;
+
+constructor EBson.Create(const AMsg, AStrParam: string; ACode: Integer);
+begin
+  inherited CreateFmt(AMsg, [AStrParam, ACode]);
+  FErrorCode := ACode;
+end;
+
 { TBsonOID }
 
 constructor TBsonOID.Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF});
@@ -829,12 +853,12 @@ end;
 procedure TBsonIterator.checkValidHandle;
 begin
   if Handle = nil then
-    raise EMongo.Create(SIteratorHandleIsNil, E_IteratorHandleIsNil);
+    raise EBson.Create(SIteratorHandleIsNil, E_IteratorHandleIsNil);
 end;
 
 procedure TBsonIterator.ErrorIteratorAtEnd(const AFnName: String);
 begin
-  raise EMongo.Create(SErrorCallingIteratorAtEnd, AFnName, E_ErrorCallingIteratorAtEnd);
+  raise EBson.Create(SErrorCallingIteratorAtEnd, AFnName, E_ErrorCallingIteratorAtEnd);
 end;
 
 function TBsonIterator.Find(const Name: UTF8String): Boolean;
@@ -943,7 +967,7 @@ begin
       {$ELSE}
       Result := bson_iterator_long(Handle);
       {$ENDIF}
-    else raise EMongo.Create(SNotSupportedByTBsonIteratorValue, IntToStr(Ord(k)), E_NotSupportedByTBsonIteratorValue);
+    else raise EBson.Create(SNotSupportedByTBsonIteratorValue, IntToStr(Ord(k)), E_NotSupportedByTBsonIteratorValue);
   end;
 end;
 
@@ -1407,12 +1431,12 @@ var
       else if def[i].VObject = End_Array then
         begin
           if RestoreStack <> bsonARRAY then
-            raise EMongo.Create(SWasNotExpectingCloseOfArrayOperator, E_WasNotExpectingCloseOfArrayOperator);
+            raise EBson.Create(SWasNotExpectingCloseOfArrayOperator, E_WasNotExpectingCloseOfArrayOperator);
           Result := finishObject;
         end
       else if def[i].VObject = Null_Element then
         Result := AppendNull(Fld)
-      else raise EMongo.Create(SDatatypeNotSupportedToBuildBSON, E_DatatypeNotSupportedToBuildBSON);
+      else raise EBson.Create(SDatatypeNotSupportedToBuildBSON, E_DatatypeNotSupportedToBuildBSON);
       vtInterface  :
         if def[i].VInterface <> nil then
           if IInterface(def[i].VInterface).QueryInterface(IBsonOID, i_bsonobj) = S_OK then
@@ -1425,11 +1449,11 @@ var
             Result := append(Fld, IBsonRegex(i_bsonobj))
           else if IInterface(def[i].VInterface).QueryInterface(IBsonTimestamp, i_bsonobj) = S_OK then
             Result := append(Fld, IBsonTimestamp(i_bsonobj))
-          else raise EMongo.Create(SDatatypeNotSupportedToBuildBSON, E_DatatypeNotSupportedToBuildBSON)
-        else raise EMongo.Create(SNilInterfacePointerNotSupported, E_NilInterfacePointerNotSupported);
+          else raise EBson.Create(SDatatypeNotSupportedToBuildBSON, E_DatatypeNotSupportedToBuildBSON)
+        else raise EBson.Create(SNilInterfacePointerNotSupported, E_NilInterfacePointerNotSupported);
       vtChar, vtPChar, vtWideChar, vtPWideChar, vtAnsiString, vtString,
       vtWideString {$IFDEF DELPHI2009}, vtUnicodeString {$ENDIF} : Result := AppendString(UTF8StringFromTVarRec(def[i]));
-      else raise EMongo.Create(SDatatypeNotSupportedToBuildBSON, E_DatatypeNotSupportedToBuildBSON);
+      else raise EBson.Create(SDatatypeNotSupportedToBuildBSON, E_DatatypeNotSupportedToBuildBSON);
     end;
   end;
 begin
@@ -1437,7 +1461,7 @@ begin
   ArrayIndexStack := NewStack;
   Result := True;
   if length(def) < 2 then
-    raise EMongo.Create(SDefMustContainAMinimumOfTwoElements, E_DefMustContainAMinimumOfTwoElements);
+    raise EBson.Create(SDefMustContainAMinimumOfTwoElements, E_DefMustContainAMinimumOfTwoElements);
   i := low(def);
   while i <= High(def) do
     begin
@@ -1448,18 +1472,18 @@ begin
           if (def[i].VType = vtObject) and (def[i].VObject = End_Object) then
             begin
               if RestoreStack <> bsonOBJECT then
-                raise EMongo.Create(SWasNotExpectingCloseOfObjectOper, E_WasNotExpectingCloseOfObjectOper);
+                raise EBson.Create(SWasNotExpectingCloseOfObjectOper, E_WasNotExpectingCloseOfObjectOper);
               Result := finishObject;
               inc(i);
               continue;
             end
           else Fld := UTF8StringFromTVarRec(def[i]);
           if Fld = '' then
-            raise EMongo.Create(SExpectedDefElementShouldBeAString, E_ExpectedDefElementShouldBeAString);
+            raise EBson.Create(SExpectedDefElementShouldBeAString, E_ExpectedDefElementShouldBeAString);
           inc(i);
         end;
       if i > High(def) then
-        raise EMongo.Create(SBSONArrayDefinitionFinishedTooEarly, E_BSONArrayDefinitionFinishedTooEarly);
+        raise EBson.Create(SBSONArrayDefinitionFinishedTooEarly, E_BSONArrayDefinitionFinishedTooEarly);
       ProcessingArray := (not OperStack.Empty) and (OperStack.Peek = bsonARRAY);
       if ProcessingArray then
         Fld := IntToStr(CurArrayIndex);
@@ -1728,7 +1752,7 @@ end;
 procedure TBson.checkHandle;
 begin
   if FHandle = nil then
-    raise EMongo.Create(STBsonHandleIsNil, E_TBsonHandleIsNil);
+    raise EBson.Create(STBsonHandleIsNil, E_TBsonHandleIsNil);
 end;
 
 procedure TBson.display;
@@ -2298,7 +2322,7 @@ begin
           Result[i].VType := vtObject;
           Result[i].VObject := Null_Element;
         end
-      else raise EMongo.Create(SDatatypeNotSupportedCallingMkVarRecArrayVarArray, E_DatatypeNotSupported);
+      else raise EBson.Create(SDatatypeNotSupportedCallingMkVarRecArrayVarArray, E_DatatypeNotSupported);
    end;
 end;
 

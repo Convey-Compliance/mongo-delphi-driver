@@ -1230,7 +1230,7 @@ begin
     FIBsonBuffer.appendElementsAsArray(Def);
     Fail('call to appendElementsAsArray should have raise exception');
   except
-    on E : EMongo do CheckEquals(E_ExpectedDefElementShouldBeAString, E.ErrorCode, 'appendElementsAsArray should have raised exception. error: ' + E.Message);
+    on E : EBson do CheckEquals(E_ExpectedDefElementShouldBeAString, E.ErrorCode, 'appendElementsAsArray should have raised exception. error: ' + E.Message);
   end;
 
   SetLength(Def, 2);
@@ -1242,7 +1242,7 @@ begin
     FIBsonBuffer.appendElementsAsArray(Def);
     Fail('call to appendElementsAsArray should have raise exception');
   except
-    on E : EMongo do CheckEquals(E_NilInterfacePointerNotSupported, E.ErrorCode, 'appendElementsAsArray should have raised exception. error: ' + E.Message);
+    on E : EBson do CheckEquals(E_NilInterfacePointerNotSupported, E.ErrorCode, 'appendElementsAsArray should have raised exception. error: ' + E.Message);
   end;
 
   SetLength(Def, 0);
@@ -1250,7 +1250,7 @@ begin
     FIBsonBuffer.appendElementsAsArray(Def);
     Fail('call to appendElementsAsArray should have raise exception');
   except
-    on E : EMongo do CheckEquals(E_DefMustContainAMinimumOfTwoElements, E.ErrorCode, 'appendElementsAsArray should have raised exception. error: ' + E.Message);
+    on E : EBson do CheckEquals(E_DefMustContainAMinimumOfTwoElements, E.ErrorCode, 'appendElementsAsArray should have raised exception. error: ' + E.Message);
   end;
 end;
 
@@ -1608,7 +1608,7 @@ begin
     FIBsonIterator.Kind;
     Fail('Call to Kind when past end of iterator should result on error');
   except
-    on E : EMongo do CheckEquals(E_ErrorCallingIteratorAtEnd, E.ErrorCode, 'Exception expected calling Kind when iterator is past end');
+    on E : EBson do CheckEquals(E_ErrorCallingIteratorAtEnd, E.ErrorCode, 'Exception expected calling Kind when iterator is past end');
   end;
 end;
 
