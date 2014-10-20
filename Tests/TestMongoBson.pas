@@ -1,4 +1,4 @@
-unit TestMongoBson;
+﻿unit TestMongoBson;
 {
 
   Delphi DUnit Test Case
@@ -174,10 +174,8 @@ type
     procedure TearDown; override;
   published
     procedure TestComplexBson;
-    {$IFDEF USE_LIBBSON}
     procedure TestCreateFromJson;
     procedure TestAsJson;
-    {$ENDIF}
     procedure Testfind;
     procedure TestgetHandle;
     procedure Testiterator;
@@ -191,10 +189,8 @@ type
 
   TestBsonAPI = class(TTestCase)
   published
-    {$IFDEF USE_LIBBSON}
     procedure TestLibBsonApis;
     procedure TestBsonFromJson;
-    {$ENDIF}
     procedure Test_bson_set_oid_inc;
     procedure Test_bson_set_oid_fuzz;
   end;
@@ -217,9 +213,7 @@ implementation
 
 uses
   Classes{$IFNDEF VER130}, Variants{$ENDIF}, MongoAPI, MongoDB,
-  {$IFDEF USE_LIBBSON}
   LibBsonAPI,
-  {$ENDIF}
   uPrimitiveAllocator, Math;
 
 const
@@ -1681,7 +1675,6 @@ begin
   Check(not it.next, 'Call to it.next should be false');
 end;
 
-{$IFDEF USE_LIBBSON}
 procedure TestIBson.TestCreateFromJson;
 const
   TestJson : PAnsiChar = '{ "str" : "the value" }';
@@ -1712,7 +1705,6 @@ begin
   s := b.asJson;
   CheckEqualsString('{ "ID" : 123, "S" : "STR" }', s);
 end;
-{$ENDIF}
 
 procedure TestIBson.Testfind;
 var
@@ -1878,7 +1870,6 @@ begin
   CustomOIDFuzz := True;
 end;
 
-{$IFDEF USE_LIBBSON}
 procedure TestBsonAPI.TestLibBsonApis;
 const
   JSON : PAnsiChar = '{ "str": "hello"}';
@@ -1907,7 +1898,6 @@ begin
   b := nil;
   libbson_bson_destroy(p);
 end;
-{$ENDIF}
 
 procedure TestBsonAPI.Test_bson_set_oid_inc;
 begin

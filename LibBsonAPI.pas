@@ -14,7 +14,8 @@ type
 {$ENDIF}
 
 const
-  LibBson_DllVersion = '1-0-0'; (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
+  (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
+  LibBson_DllVersion = '1-0-1';
 
   CPUType = {$IFDEF WIN64} '64' {$ELSE} '32' {$ENDIF};
   ConfigType = {$IFDEF DEBUG} 'd' {$ELSE} 'r' {$ENDIF};
