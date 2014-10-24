@@ -5,7 +5,7 @@ interface
 {$I MongoC_defines.inc}
 
 uses
-  SysUtils;
+  SysUtils, MongoBson;
 
 const
   (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
@@ -32,42 +32,6 @@ type
     flags, len: LongWord;
     padding: array[0..119] of Byte;
   end;
-
-  bson_oid_p = ^bson_oid_t;
-  bson_oid_t = array [0..11] of byte;
-
-  bson_type_p = ^bson_type_t;
-  bson_type_t = (BSON_TYPE_EOD,
-    BSON_TYPE_DOUBLE,
-    BSON_TYPE_UTF8,
-    BSON_TYPE_DOCUMENT,
-    BSON_TYPE_ARRAY,
-    BSON_TYPE_BINARY,
-    BSON_TYPE_UNDEFINED,
-    BSON_TYPE_OID,
-    BSON_TYPE_BOOL,
-    BSON_TYPE_DATE_TIME,
-    BSON_TYPE_NULL,
-    BSON_TYPE_REGEX,
-    BSON_TYPE_DBPOINTER,
-    BSON_TYPE_CODE,
-    BSON_TYPE_SYMBOL,
-    BSON_TYPE_CODEWSCOPE,
-    BSON_TYPE_INT32,
-    BSON_TYPE_TIMESTAMP,
-    BSON_TYPE_INT64,
-    BSON_TYPE_MAXKEY,
-    BSON_TYPE_MINKEY);
-
-   bson_subtype_p = ^bson_subtype_t;
-   bson_subtype_t = (BSON_SUBTYPE_BINARY,
-     BSON_SUBTYPE_FUNCTION,
-     BSON_SUBTYPE_BINARY_DEPRECATED,
-     BSON_SUBTYPE_UUID_DEPRECATED,
-     BSON_SUBTYPE_UUID,
-     BSON_SUBTYPE_MD5,
-     BSON_SUBTYPE_USER
-   );
 
    PPbyte = ^PByte;
 
@@ -104,7 +68,7 @@ function bson_append_date_time(bson : Pointer; const key : PAnsiChar; key_length
 function bson_append_bool(bson : Pointer; const key : PAnsiChar; key_length : Integer;
   value : Boolean) : Boolean; cdecl; external LibBson_DLL;
 function bson_append_oid(bson : Pointer; const key : PAnsiChar; key_length : Integer;
-  const value : bson_oid_p) : Boolean; cdecl; external LibBson_DLL;
+  const value : PBsonOIDBytes) : Boolean; cdecl; external LibBson_DLL;
 function bson_append_code_with_scope(bson : Pointer; const key : PAnsiChar; key_length : Integer;
   const javascript : PAnsiChar; const scope : Pointer) : Boolean; cdecl; external LibBson_DLL;
 function bson_append_regex(bson : Pointer; const key : PAnsiChar; key_length : Integer;
@@ -112,7 +76,7 @@ function bson_append_regex(bson : Pointer; const key : PAnsiChar; key_length : I
 function bson_append_timestamp(bson : Pointer; const key : PAnsiChar; key_length : Integer;
   timestamp : LongWord; increment : LongWord) : Boolean; cdecl; external LibBson_DLL;
 function bson_append_binary(bson : Pointer; const key : PAnsiChar; key_length : Integer;
-  subtype : bson_subtype_t; const binary : PByte; length : LongWord) : Boolean; cdecl; external LibBson_DLL;
+  subtype : TBsonSubtype; const binary : PByte; length : LongWord) : Boolean; cdecl; external LibBson_DLL;
 function bson_append_null(bson : Pointer; const key : PAnsiChar; key_length : Integer) : Boolean;
   cdecl; external LibBson_DLL;
 function bson_append_undefined(bson : Pointer; const key : PAnsiChar; key_length : Integer) : Boolean;
@@ -126,19 +90,19 @@ function bson_append_array_begin(bson : Pointer; const key : PAnsiChar; key_leng
   child: Pointer) : Boolean; cdecl; external LibBson_DLL;
 function bson_append_array_end(bson, child : Pointer) : Boolean; cdecl; external LibBson_DLL;
 
-procedure bson_oid_init(oid : bson_oid_p; context : Pointer); cdecl; external LibBson_DLL;
-procedure bson_oid_init_from_string(oid : bson_oid_p; const str : PAnsiChar); cdecl; external LibBson_DLL;
-procedure bson_oid_to_string(oid : bson_oid_p; str : PAnsiChar); cdecl; external LibBson_DLL;
+procedure bson_oid_init(oid : PBsonOIDBytes; context : Pointer); cdecl; external LibBson_DLL;
+procedure bson_oid_init_from_string(oid : PBsonOIDBytes; const str : PAnsiChar); cdecl; external LibBson_DLL;
+procedure bson_oid_to_string(oid : PBsonOIDBytes; str : PAnsiChar); cdecl; external LibBson_DLL;
 
 function bson_iter_init(iter : Pointer; const bson : Pointer) : Boolean; cdecl; external LibBson_DLL;
 function bson_iter_init_find(iter : Pointer; const bson : Pointer; const key : PAnsiChar) : Boolean;
   cdecl; external LibBson_DLL;
-function bson_iter_type(const iter : Pointer) : bson_type_t; cdecl; external LibBson_DLL;
+function bson_iter_type(const iter : Pointer) : TBsonType; cdecl; external LibBson_DLL;
 function bson_iter_next(iter : Pointer) : Boolean; cdecl; external LibBson_DLL;
 function bson_iter_key(const iter : Pointer) : PAnsiChar; cdecl; external LibBson_DLL;
 function bson_iter_recurse(const iter : Pointer; child : Pointer) : Boolean; cdecl; external LibBson_DLL;
 
-function bson_iter_oid(const iter : Pointer) : bson_oid_p; cdecl; external LibBson_DLL;
+function bson_iter_oid(const iter : Pointer) : PBsonOIDBytes; cdecl; external LibBson_DLL;
 function bson_iter_int32(const iter : Pointer) : LongInt; cdecl; external LibBson_DLL;
 function bson_iter_int64(const iter : Pointer) : Int64; cdecl; external LibBson_DLL;
 function bson_iter_double(const iter : Pointer) : Double; cdecl; external LibBson_DLL;
@@ -151,7 +115,7 @@ function bson_iter_codewscope(const iter : Pointer; length, scope_len : PLongWor
   scope : PPByte) : PAnsiChar; cdecl; external LibBson_DLL;
 function bson_iter_regex(const iter : Pointer; options : PPAnsiChar) : PAnsiChar; cdecl; external LibBson_DLL;
 procedure bson_iter_timestamp(const iter : Pointer; timestamp, increment : PLongWord); cdecl; external LibBson_DLL;
-procedure bson_iter_binary(const iter : Pointer; subtype : bson_subtype_p; binary_len : PLongWord;
+procedure bson_iter_binary(const iter : Pointer; subtype : PBsonSubtype; binary_len : PLongWord;
   binary : PPByte); cdecl; external LibBson_DLL;
 
 

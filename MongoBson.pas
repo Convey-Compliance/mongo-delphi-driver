@@ -93,6 +93,7 @@ type
    BSON_TYPE_MAXKEY,
    BSON_TYPE_MINKEY);
 
+   PBsonSubtype = ^TBsonSubtype;
    TBsonSubtype = (BSON_SUBTYPE_BINARY,
      BSON_SUBTYPE_FUNCTION,
      BSON_SUBTYPE_BINARY_DEPRECATED,
@@ -796,7 +797,7 @@ function TBsonOID.asString: UTF8String;
 var
   buf: TBsonOIDString;
 begin
-  bson_oid_to_string(bson_oid_p(@FValue), @buf);
+  bson_oid_to_string(PBsonOIDBytes(@FValue), @buf);
   Result := UTF8String(buf);
 end;
 
@@ -1124,7 +1125,7 @@ end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonOID): Boolean;
 begin
-  Result := bson_append_oid(GetCurrNativeBson, PAnsiChar(Name), -1, bson_oid_p(Value.Value));
+  Result := bson_append_oid(GetCurrNativeBson, PAnsiChar(Name), -1, Value.Value);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonCodeWScope):
@@ -1152,7 +1153,7 @@ end;
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonBinary):
     Boolean;
 begin
-  Result := bson_append_binary(GetCurrNativeBson, PAnsiChar(Name), -1, bson_subtype_t(Value.getKind),
+  Result := bson_append_binary(GetCurrNativeBson, PAnsiChar(Name), -1, Value.getKind,
     Value.getData, Value.getLen);
 end;
 
@@ -1223,7 +1224,7 @@ end;
 function TBsonBuffer.appendBinary(const Name: UTF8String; Kind: TBsonSubtype; const Data:
     PByte; Length: LongWord): Boolean;
 begin
-  Result := bson_append_binary(GetCurrNativeBson, PAnsiChar(Name), -1, bson_subtype_t(Kind), Data, Length);
+  Result := bson_append_binary(GetCurrNativeBson, PAnsiChar(Name), -1, Kind, Data, Length);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBson): Boolean;
@@ -1797,7 +1798,7 @@ begin
   {$IFDEF OnDemandMongoCLoad}
   InitMongoDBLibrary;
   {$ENDIF}
-  bson_iter_binary(i.getHandle, bson_subtype_p(@Kind), @Len, @p);
+  bson_iter_binary(i.getHandle, @Kind, @Len, @p);
   GetMem(Data, Len);
   Move(p^, Data^, Len);
 end;
