@@ -194,7 +194,7 @@ implementation
 
 uses
   AppExec, uWinProcHelper, uFileManagement{$IFNDEF VER130}, Variants{$ENDIF}, Windows, FileCtrl
-  {$IFDEF TAXPORT}, uScope, Forms, CnvStream, CnvFileUtils, JclDateTime {$ENDIF};
+  {$IFDEF TAXPORT}, uScope, Forms, CnvStream, CnvFileUtils, JclDateTime {$ENDIF}, Dialogs;
 
 procedure StartMongoDB(const AParams: UTF8String);
 {$IFDEF TAXPORT}
@@ -775,7 +775,8 @@ begin
   ReturnValue := FMongo.distinct(ns, key);
   Check(ReturnValue <> nil, 'Call to Mongo.distinct should have returned a value <> nil');
   i := ReturnValue.iterator;
-  Arr := i.getIntegerArray;
+  i.next;
+  Arr := i.asIntegerArray;
   CheckEquals(2, length(Arr), 'Number of values returned by call to distinct should be equals to 2');
   CheckEquals(1, Arr[0], 'First value returned should be equals to 1');
   CheckEquals(2, Arr[1], 'Second value returned should be equals to 2');
@@ -979,7 +980,7 @@ begin
   ResultBson := Res.find('value').subiterator;
   Check(ResultBson <> nil, 'subiterator should be <> nil');
   Check(ResultBson.next, 'Call to iterator.next should return True');
-  CheckNotEqualsString('', ResultBson.getOID.asString);
+  CheckNotEqualsString('', ResultBson.asOID.asString);
   Check(ResultBson.next, 'Call to iterator.next should return True');
   CheckEquals(11, ResultBson.value);
   Check(ResultBson.next, 'Call to iterator.next should return True');
@@ -1007,13 +1008,13 @@ begin
   ResultBson := Res.find('value').subiterator;
   Check(ResultBson <> nil, 'subiterator should be <> nil');
   Check(ResultBson.next, 'Call to iterator.next should return True');
-  CheckEqualsString(id.asString, ResultBson.getOID.asString);
+  CheckEqualsString(id.asString, ResultBson.asOID.asString);
   Check(ResultBson.next, 'Call to iterator.next should return True');
   CheckEqualsString('world', ResultBson.value, 'value of attribute strattr doesn''t match');
   Check(ResultBson.next, 'Call to iterator.next should return True');
-  Check(ResultBson.getTimestamp <> nil, 'value of attribute should be a timestamp');
+  Check(ResultBson.asTimestamp <> nil, 'value of attribute should be a timestamp');
   Check(ResultBson.next, 'Call to iterator.next should return True');
-  CheckEquals(length(Data), ResultBson.getBinary.Len, 'value of attribute should be a binary');
+  CheckEquals(length(Data), ResultBson.asBinary.Len, 'value of attribute should be a binary');
   Check(not ResultBson.next, 'Call to iterator.next should return False');
 end;
 
@@ -1034,7 +1035,7 @@ begin
   ResultBson := Res.find('value').subiterator;
   Check(ResultBson <> nil, 'subiterator should be <> nil');
   Check(ResultBson.next, 'Call to iterator.next should return True');
-  CheckNotEqualsString('', ResultBson.getOID.asString);
+  CheckNotEqualsString('', ResultBson.asOID.asString);
   Check(ResultBson.next, 'Call to iterator.next should return True');
   CheckEqualsString('key', ResultBson.key, 'Key of last element should be equals to key');
   Check(ResultBson.next, 'Call to iterator.next should return True');

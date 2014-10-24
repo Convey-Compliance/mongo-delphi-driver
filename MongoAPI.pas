@@ -138,6 +138,7 @@ type
   Tmongo_write_concern_set_fsync = procedure(write_concern : Pointer; fsync : integer); cdecl;
   Tmongo_write_concern_set_mode = procedure(write_concern : Pointer; mode : PAnsiChar); cdecl;
   // MongoBSON declarations
+  Tbson_shared_empty = function: Pointer; cdecl;
   Tbson_free = procedure (b : pointer); cdecl;
   Tbson_init = function (b: Pointer) : integer; cdecl;
   Tbson_init_finished_data = function (b : Pointer; data : PAnsiChar; ownsData : LongBool) : integer; cdecl;
@@ -315,6 +316,7 @@ var
   mongo_write_concern_set_fsync : Tmongo_write_concern_set_fsync;
   mongo_write_concern_set_mode : Tmongo_write_concern_set_mode;
   // MongoBson declarations
+  bson_shared_empty : Tbson_shared_empty;
   bson_free : Tbson_free;
   bson_init : Tbson_init;
   bson_init_finished_data : Tbson_init_finished_data;
@@ -498,6 +500,7 @@ var
   procedure mongo_write_concern_set_fsync(write_concern : Pointer; fsync : integer); cdecl; external Default_MongoCDLL;
   procedure mongo_write_concern_set_mode(write_concern : Pointer; mode : PAnsiChar); cdecl; external Default_MongoCDLL;
   // MongoBson declarations
+  function bson_shared_empty: Pointer; cdecl; external Default_MongoCDLL;
   procedure bson_free(b : pointer); cdecl; external Default_MongoCDLL;
   function bson_init(b: Pointer) : integer; cdecl; external Default_MongoCDLL;
   function bson_init_finished_data(b : Pointer; data : PAnsiChar; ownsData : LongBool) : integer; cdecl; external Default_MongoCDLL;
@@ -884,8 +887,11 @@ end;
 
 procedure bson_dealloc_and_destroy(bson : Pointer);
 begin
-  bson_destroy(bson);
-  bson_dealloc(bson);
+  if bson <> nil then
+  begin
+    bson_destroy(bson);
+    bson_dealloc(bson);
+  end;
 end;
 
 function mongo_write_concern_create: Pointer;

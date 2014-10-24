@@ -90,7 +90,7 @@ function Strip_T_FormClassName(const AClassName : string): string;
 implementation
 
 uses
-  SyncObjs, MongoApi, uLinkedListDefaultImplementor, uScope
+  SyncObjs, uLinkedListDefaultImplementor, uScope
   {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
 
 const
@@ -613,15 +613,15 @@ begin
       PropInfosDictionary := GetPropInfosDictionary(ATarget);
       if not PropInfosDictionary.TryGetValue(Source.key, TObject(p)) then
         continue;
-      if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [bsonARRAY])  then
+      if (p^.PropType^.Kind = tkVariant) and not (Source.Kind in [BSON_TYPE_ARRAY])  then
         SetVariantProp(ATarget, p, Source.value)
       else case Source.Kind of
-        bsonINT : SetOrdProp(ATarget, p, Source.AsInteger);
-        bsonBOOL : if Source.AsBoolean then
+        BSON_TYPE_INT32 : SetOrdProp(ATarget, p, Source.AsInteger);
+        BSON_TYPE_BOOL : if Source.AsBoolean then
             SetEnumProp(ATarget, p, STrue)
           else SetEnumProp(ATarget, p, SFalse);
-        bsonLONG : SetInt64Prop(ATarget, p, Source.AsInt64);
-        bsonSTRING, bsonSYMBOL : if PropInfosDictionary.TryGetValue(Source.key, TObject(p)) then
+        BSON_TYPE_INT64 : SetInt64Prop(ATarget, p, Source.AsInt64);
+        BSON_TYPE_UTF8, BSON_TYPE_SYMBOL : if PropInfosDictionary.TryGetValue(Source.key, TObject(p)) then
           case p^.PropType^.Kind of
             tkEnumeration : SetEnumProp(ATarget, p, Source.AsUTF8String);
             tkWString :
@@ -644,9 +644,9 @@ begin
               SetOrdProp(ATarget, p, NativeInt(UTF8Decode(Source.value)[1]));
             {$ENDIF}
           end;
-        bsonDOUBLE : SetFloatProp (ATarget, p, Source.AsDouble);
-        bsonDATE : SetFloatProp (ATarget, p, Source.AsDateTime);
-        bsonARRAY : case p^.PropType^.Kind of
+        BSON_TYPE_DOUBLE : SetFloatProp (ATarget, p, Source.AsDouble);
+        BSON_TYPE_DATE_TIME : SetFloatProp (ATarget, p, Source.AsDateTime);
+        BSON_TYPE_ARRAY : case p^.PropType^.Kind of
             tkSet : DeserializeSet(p, ATarget);
             tkVariant :
             begin
@@ -681,7 +681,7 @@ begin
             end;
             tkClass : DeserializeObject(p, ATarget, AContext);
           end;
-        bsonOBJECT, bsonBINDATA : if p^.PropType^.Kind = tkClass then
+        BSON_TYPE_DOCUMENT, BSON_TYPE_BINARY : if p^.PropType^.Kind = tkClass then
           DeserializeObject(p, ATarget, AContext);
       end;
     end;
@@ -714,7 +714,7 @@ var
 begin
   Deserializer := CreateDeserializer(AObjClass);
   try
-    if Source.Kind in [bsonOBJECT, bsonARRAY] then
+    if Source.Kind in [BSON_TYPE_DOCUMENT, BSON_TYPE_ARRAY] then
       Deserializer.Source := ASource.subiterator
     else
       Deserializer.Source := ASource; // for bindata we need original BsonIterator to obtain binary handler
@@ -802,7 +802,7 @@ var
   I: Integer;
   it: IBsonIterator;
 begin
-  if Source.Kind <> bsonARRAY then
+  if Source.Kind <> BSON_TYPE_ARRAY then
     Exit;
 
   dynArrayElementInfo := GetTypeData(p.PropType^)^.elType2;
@@ -810,7 +810,7 @@ begin
   SetLength(dynArrOfObjs, 256);
   I := 0;
   it := Source.subiterator;
-  while it.next and (it.Kind = bsonOBJECT) do
+  while it.next and (it.Kind = BSON_TYPE_DOCUMENT) do
   begin
     if I > Length(dynArrOfObjs) then
       SetLength(dynArrOfObjs, I * 2);
@@ -825,10 +825,12 @@ end;
 function TPrimitivesBsonDeserializer.GetArrayDimension(it: IBsonIterator) : Integer;
 begin
   Result := 0;
-  while it.Kind = bsonARRAY do
+  while it.Kind = BSON_TYPE_ARRAY do
   begin
     Inc(Result);
     it := it.subiterator;
+    if not it.next then
+      Exit;
   end;
 end;
 
@@ -845,8 +847,7 @@ end;
 
 { TStreamBsonSerializer }
 
-procedure TStreamBsonSerializer.Serialize(const AName: String; ASource:
-    TObject);
+procedure TStreamBsonSerializer.Serialize(const AName: String; ASource: TObject);
 var
   Stream : TStream;
   Data : Pointer;
@@ -854,14 +855,15 @@ begin
   Stream := ASource as TStream;
   if Stream.Size > 0 then
     GetMem(Data, Stream.Size)
-  else Data := nil;
+  else
+    Data := nil;
   try
     if Data <> nil then
       begin
         Stream.Position := 0;
         Stream.Read(Data^, Stream.Size);
       end;
-    Target.appendBinary(AName, 0, Data, Stream.Size);
+    Target.appendBinary(AName, BSON_SUBTYPE_BINARY, Data, Stream.Size);
   finally
     if Data <> nil then
       FreeMem(Data);
@@ -875,7 +877,7 @@ var
   binData : IBsonBinary;
   Stream : TStream;
 begin
-  binData := Source.getBinary;
+  binData := Source.asBinary;
   Stream := ATarget as TStream;
   Stream.Size := binData.Len;
   Stream.Position := 0;
@@ -995,15 +997,16 @@ begin
   with TCnvStringDictionary(ATarget) do
     while Source.next do
       case Source.Kind of
-        bsonSTRING: AddOrSetValue(Source.key, Source.AsUTF8String);
-        bsonINT: AddOrSetValue(Source.key, Source.AsInteger);
-        bsonLONG: AddOrSetValue(Source.key, Source.AsInt64);
-        bsonDOUBLE: AddOrSetValue(Source.key, Source.AsDouble);
-        bsonBOOL: AddOrSetValue(Source.key, Source.AsBoolean);
-        bsonDATE: AddOrSetValueDate(Source.key, Source.AsDateTime);
-        bsonOBJECT:
+        BSON_TYPE_UTF8: AddOrSetValue(Source.key, Source.AsUTF8String);
+        BSON_TYPE_INT32: AddOrSetValue(Source.key, Source.AsInteger);
+        BSON_TYPE_INT64: AddOrSetValue(Source.key, Source.AsInt64);
+        BSON_TYPE_DOUBLE: AddOrSetValue(Source.key, Source.AsDouble);
+        BSON_TYPE_BOOL: AddOrSetValue(Source.key, Source.AsBoolean);
+        BSON_TYPE_DATE_TIME: AddOrSetValueDate(Source.key, Source.AsDateTime);
+        BSON_TYPE_DOCUMENT:
         begin
           it := Source.subiterator;
+          it.next;
           obj := TPrimitivesBsonDeserializer.BuildObject(it.AsUTF8String, AContext);
           deserializer := CreateDeserializer(TObject);
           try

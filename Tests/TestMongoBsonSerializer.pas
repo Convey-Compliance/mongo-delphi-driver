@@ -38,7 +38,7 @@ type
 implementation
 
 uses
-  MongoBson, MongoApi, Classes, SysUtils;
+  MongoBson, Classes, SysUtils, Dialogs;
 
 type
   TEnumeration = (eFirst, eSecond);
@@ -199,12 +199,12 @@ begin
     FSerializer.Serialize('', TestObject1);
 
     b := FSerializer.Target.finish;
-    it := NewBsonIterator(b);
+    it := b.iterator;
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('_type', it.key);
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('ObjectAsStringList', it.key);
-    Check(it.Kind = bsonObject, 'Type of iterator value should be bsonObject');
+    Check(it.Kind = BSON_TYPE_DOCUMENT, 'Type of iterator value should be bsonObject');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals('Name1', SubIt.key, 'Iterator should be equals to Value1');
@@ -218,7 +218,7 @@ begin
 
     TestObject2 := TTestObjectWithObjectAsStringList.Create;
     try
-      FDeserializer.Source := NewBsonIterator(b);
+      FDeserializer.Source := b.iterator;
       FDeserializer.Deserialize(TObject(TestObject2), nil);
 
       CheckEquals('Name1=Value1', TestObject2.ObjectAsStringList[0]);
@@ -239,18 +239,22 @@ end;
 
 procedure TestTMongoBsonSerializer.TestSerializeObjectDeserializeWithDynamicBuilding;
 var
+  b: IBsonBuffer;
   AObj : TTestObject;
+  it: IBsonIterator;
 begin
+  b := NewBsonBuffer;
   AObj := TTestObject.Create;
   try
     AObj.The_00_Int := 123;
-    FSerializer.Target := NewBsonBuffer();
+    FSerializer.Target := b;
     FSerializer.Serialize('', AObj);
   finally
-    AObj.Free;
+    FreeAndNil(AObj);
   end;
-  AObj := nil;
-  FDeserializer.Source := FSerializer.Target.finish.iterator;
+
+  it := b.finish.iterator;
+  FDeserializer.Source := it;
   RegisterBuildableSerializableClass(TTestObject.ClassName, BuildTTestObject);
   try
     FDeserializer.Deserialize(TObject(AObj), pointer(1234));
@@ -392,7 +396,7 @@ begin
     FSerializer.Serialize('', Obj);
 
     b := FSerializer.Target.finish;
-    it := NewBsonIterator(b);
+    it := b.iterator;
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('_type', it.key);
     CheckTrue(it.Next, 'Iterator should not be at end');
@@ -429,7 +433,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_07_Set', it.key);
-    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEqualsString('eFirst', SubIt.Value, 'Iterator should be equals to "eFirst"');
@@ -439,7 +443,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_08_SubObject', it.key);
-    Check(it.Kind = bsonOBJECT, 'Type of iterator value should be bsonOBJECT');
+    Check(it.Kind = BSON_TYPE_DOCUMENT, 'Type of iterator value should be bsonOBJECT');
     SubIt := it.subiterator;
     CheckTrue(Subit.Next, 'SubIterator should not be at end');
     CheckEqualsString('_type', Subit.key);
@@ -449,7 +453,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_09_DynIntArr', it.key);
-    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(1, SubIt.Value, 'Iterator should be equals to 1');
@@ -471,7 +475,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_13_StringList', it.key);
-    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     {$IFDEF DELPHIXE}
@@ -499,7 +503,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_16_VariantAsArray', it.key);
-    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(16, SubIt.Value, 'Iterator should be equals to 16');
@@ -509,20 +513,20 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_17_VariantTwoDimArray', it.key);
-    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Iterator should not be at end');
-    Check(SubIt.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(SubIt.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubSubIt := SubIt.subiterator;
     CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
-    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    Check(SubSubIt.Kind = BSON_TYPE_INT32, 'Type of iterator value should be bsonARRAY');
     CheckEquals(16, SubSubIt.Value, 'Iterator should be equals to 16');
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(22, SubSubIt.Value, 'Iterator should be equals to 22');
     SubIt.next;
     SubSubIt := SubIt.subiterator;
     CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
-    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    Check(SubSubIt.Kind = BSON_TYPE_INT32, 'Type of iterator value should be bsonARRAY');
     CheckEquals(33, SubSubIt.Value, 'Iterator should be equals to 16');
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(44, SubSubIt.Value, 'Iterator should be equals to 22');
@@ -537,35 +541,30 @@ begin
     CheckEquals(Obj.The_20_DateTime, it.value, 0.1, 'expected date to match');
 
     Check(it.next, 'Iterator should not be at end');
-    Check(it.Kind = bsonBINDATA, 'expecting binary bson');
-    bin := it.getBinary;
+    Check(it.Kind = BSON_TYPE_BINARY, 'expecting binary bson');
+    bin := it.asBinary;
     CheckEquals(length(SomeData), bin.Len, 'binary data expected');
     Check(CompareMem(SomeData, bin.Data, bin.len), 'memory doesn''t match');
 
     Check(it.next, 'Iterator should not be at end');
-    Check(it.Kind = bsonBINDATA, 'expecting binary bson');
-    bin := it.getBinary;
-    CheckEquals(0, bin.Len, 'blank binary data expected');
-
-    Check(it.next, 'Iterator should not be at end');
-    Check(it.Kind = bsonARRAY, 'expecting binary bson');
+    Check(it.Kind = BSON_TYPE_ARRAY);
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_24_DynIntArrArr', it.key);
-    Check(it.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Iterator should not be at end');
-    Check(SubIt.Kind = bsonARRAY, 'Type of iterator value should be bsonARRAY');
+    Check(SubIt.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
     SubSubIt := SubIt.subiterator;
     CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
-    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    Check(SubSubIt.Kind = BSON_TYPE_INT32, 'Type of iterator value should be bsonARRAY');
     CheckEquals(1, SubSubIt.Value, 'Iterator should be equals to 16');
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(2, SubSubIt.Value, 'Iterator should be equals to 22');
     SubIt.next;
     SubSubIt := SubIt.subiterator;
     CheckTrue(SubSubIt.Next, 'Iterator should not be at end');
-    Check(SubSubIt.Kind = bsonINT, 'Type of iterator value should be bsonARRAY');
+    Check(SubSubIt.Kind = BSON_TYPE_INT32, 'Type of iterator value should be bsonARRAY');
     CheckEquals(3, SubSubIt.Value, 'Iterator should be equals to 16');
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(4, SubSubIt.Value, 'Iterator should be equals to 22');
@@ -583,7 +582,7 @@ begin
     obj2.The_24_DynIntArrArr := dynIntArrArr;
     try
       obj2.The_23_EmptySet := [eFirst];
-      FDeserializer.Source := NewBsonIterator(b);
+      FDeserializer.Source := b.iterator;
       FDeserializer.Deserialize(TObject(Obj2), nil);
 
       CheckEquals(10, obj2.The_00_Int, 'Value of The_00_Int doesn''t match');
@@ -676,20 +675,20 @@ begin
   FSerializer.Serialize('', obj);
 
   b := FSerializer.Target.finish;
-  it := NewBsonIterator(b);
+  it := b.iterator;
 
   Check(it.next);
-  Check(bsonSTRING = it.Kind);
+  Check(BSON_TYPE_UTF8 = it.Kind);
   CheckEqualsString('DynamicArrayOfObjectsContainer', it.AsUTF8String);
   Check(it.next);
 
-  Check(bsonARRAY = it.Kind);
+  Check(BSON_TYPE_ARRAY = it.Kind);
   CheckEqualsString('Arr', it.key);
   subit := it.subiterator;
   for I := 0 to Length(arr) - 1 do
   begin
-    Check(bsonOBJECT = subit.Kind);
     Check(subit.next);
+    Check(BSON_TYPE_DOCUMENT = subit.Kind);
     with subit.subiterator do
     begin
       Check(next);
@@ -703,7 +702,10 @@ begin
   CheckFalse(it.next);
 
   deserializedObj := TDynamicArrayOfObjectsContainer.Create;
-  FDeserializer.Source := NewBsonIterator(b);
+  it := b.iterator;
+  it.next;
+  FDeserializer.Source := it;
+
   FDeserializer.Deserialize(TObject(deserializedObj), nil);
 
   for I := 0 to Length(obj.Arr) - 1 do
