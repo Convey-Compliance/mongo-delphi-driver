@@ -386,7 +386,7 @@ begin
   Check(ReturnValue <> nil, 'Chunk object should be <> nil');
   Iter := ReturnValue.find('data');
   Check(Iter <> nil, 'Iterator with Binary data should be <> nil');
-  Bin := Iter.getBinary;
+  Bin := Iter.asBinary;
   SetLength(s, Bin.Len);
   move(Bin.Data^, PAnsiChar(s)^, Bin.Len);
   CheckEqualsString(FILEDATA, s, 'Data attribute of chunk doesn''t match');

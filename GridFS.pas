@@ -400,7 +400,7 @@ function TGridFS.writerCreate(const remoteName, contentType: UTF8String; Flags:
     Integer = GRIDFILE_DEFAULT): IGridfileWriter;
 begin
   CheckHandle;
-  Result := TGridfileWriter.Create(Self, remoteName, contentType, True, bsonEmpty.Handle, Flags);
+  Result := TGridfileWriter.Create(Self, remoteName, contentType, True, bson_shared_empty, Flags);
 end;
 
 function TGridFS.writerCreate(const remoteName: UTF8String; Flags: Integer =
@@ -419,7 +419,7 @@ function TGridFS.find(query: IBson; AWriteMode: Boolean): IGridfile;
 var
   gf: IGridfile;
   AHandle : Pointer;
-  meta : Pointer;
+  meta, q : Pointer;
 begin
   CheckHandle;
   gf := nil;
@@ -429,8 +429,9 @@ begin
       AHandle := gf.Handle;
     end
     else AHandle := gridfile_create;
+  q := toMongoCBson(query);
   try
-    if gridfs_find_query(Handle, query.Handle, AHandle) = 0 then
+    if gridfs_find_query(Handle, q, AHandle) = 0 then
       begin
         if AWriteMode then
           begin
@@ -449,6 +450,7 @@ begin
   finally
     if AWriteMode then
       gridfile_dealloc(AHandle);
+    bson_dealloc_and_destroy(q);
   end;
 end;
 
@@ -628,7 +630,7 @@ begin
     if bson_size(b) <= 5 then
       Result := nil
     else
-      Result := NewBsonCopy(b);
+      Result := NewBson(bson_data(b), bson_size(b));
   finally
     bson_dealloc(b); // Dont' call Destroy for this object, data is owned by gridfile
   end;
@@ -648,7 +650,7 @@ begin
   b := bson_create;
   try
     gridfile_get_descriptor(FHandle, b);
-    Result := NewBsonCopy(b);
+    Result := NewBson(bson_data(b), bson_size(b));
   finally
     bson_dealloc(b); // Dont' call Destroy for this object, data is owned by gridfile
   end;
@@ -656,22 +658,19 @@ end;
 
 function TGridfile.getChunk(i: Integer): IBson;
 var
-  b: IBson;
-  h : Pointer;
+  b : Pointer;
 begin
   CheckHandle;
-  h := bson_create;
+  b := bson_create;
   try
-    b := NewBson(h);
-  except
-    bson_dealloc_and_destroy(h);
-    raise;
+    gridfile_get_chunk(FHandle, i, b);
+    if bson_size(b) <= 5 then
+      Result := nil
+    else
+      Result := NewBson(bson_data(b), bson_size(b));
+  finally
+    bson_dealloc_and_destroy(b);
   end;
-  gridfile_get_chunk(FHandle, i, b.Handle);
-  if b.size <= 5 then
-    Result := nil
-  else
-    Result := b;
 end;
 
 function TGridfile.getChunks(i: Integer; Count: Integer): IMongoCursor;
@@ -697,7 +696,7 @@ begin
   CheckHandle;
   oid := gridfile_get_id(FHandle);
   Result := NewBsonOID;
-  Result.setValue(oid);
+  Result.setValue(TBsonOIDBytes(oid));
 end;
 
 function TGridfile.getStoredChunkCount: UInt64;
@@ -710,7 +709,7 @@ begin
   CheckHandle;
   id := gridfile_get_id(FHandle);
   oid := NewBsonOID;
-  oid.setValue(id);
+  oid.setValue(TBsonOIDBytes(id));
   buf := NewBsonBuffer;
   buf.Append(SFiles_id, oid);
   q := buf.finish;

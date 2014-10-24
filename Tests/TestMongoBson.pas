@@ -12,13 +12,13 @@
 interface
 
 uses
-  SysUtils, TestFramework, MongoBson;
+  SysUtils, TestFramework, MongoBson,
+  Dialogs;
 
 {$i ..\DelphiVersion_defines.inc}
 
 type
-  // Test methods for class IBsonOID
-  
+
   TestIBsonOID = class(TTestCase)
   private
     FIBsonOID: IBsonOID;
@@ -177,22 +177,12 @@ type
     procedure TestCreateFromJson;
     procedure TestAsJson;
     procedure Testfind;
-    procedure TestgetHandle;
     procedure Testiterator;
     procedure TestMkVarRecArrayFromVarArray;
     procedure TestNewBsonCopy;
     procedure TestSimpleBSON;
     procedure Testsize;
     procedure TestValue;
-    procedure Testowns;
-  end;
-
-  TestBsonAPI = class(TTestCase)
-  published
-    procedure TestLibBsonApis;
-    procedure TestBsonFromJson;
-    procedure Test_bson_set_oid_inc;
-    procedure Test_bson_set_oid_fuzz;
   end;
 
   TestArrayBuildingFunctions = class(TTestCase)
@@ -212,8 +202,8 @@ type
 implementation
 
 uses
-  Classes{$IFNDEF VER130}, Variants{$ENDIF}, MongoAPI, MongoDB,
-  LibBsonAPI,
+  Classes,
+  {$IFNDEF VER130}Variants, {$ENDIF}
   uPrimitiveAllocator, Math;
 
 const
@@ -225,6 +215,7 @@ const
   
 procedure TestIBsonOID.SetUp;
 begin
+  inherited;
   FIBsonOID := NewBsonOID;
 end;
 
@@ -236,7 +227,7 @@ end;
 
 procedure TestIBsonOID.TestSetValueAndGetValue;
 var
-  AValue: TBsonOIDValue;
+  AValue: TBsonOIDBytes;
   i : integer;
 begin
   for i := 0 to sizeof(AValue) - 1 do
@@ -402,12 +393,12 @@ end;
 
 procedure TestIBsonBinary.TestgetKindAndsetKind;
 var
-  AKind: Integer;
+  AKind: TBsonSubtype;
 begin
-  CheckEquals(0, FIBsonBinary.getKind, 'Initial value of Kind should be zero');
-  AKind := 1;
+  Check(BSON_SUBTYPE_BINARY = FIBsonBinary.getKind, 'Initial value of Kind should be zero');
+  AKind := BSON_SUBTYPE_FUNCTION;
   FIBsonBinary.setKind(AKind);
-  CheckEquals(1, FIBsonBinary.getKind, 'Value of Kind should be one');
+  Check(BSON_SUBTYPE_FUNCTION = FIBsonBinary.getKind, 'Value of Kind should be one');
 end;
 
 procedure TestIBsonBuffer.CheckObjectWithAppendedElements(Obj: IBson);
@@ -465,6 +456,7 @@ begin
   Value := 'STRVAL';
   ReturnValue := FIBsonBuffer.AppendStr(Name, Value);
   Check(ReturnValue, 'ReturnValue should be True');
+
   b := FIBsonBuffer.finish;
   CheckEqualsString('STRVAL', b.Value('STRFLD'), 'field on BSon object doesn''t match expected value');
 end;
@@ -544,8 +536,8 @@ begin
   b := FIBsonBuffer.finish;
   i := b.find(Name);
   Check(i <> nil, 'Iterator should be <> nil');
-  CheckEqualsString('123', i.getRegex.getPattern, 'Pattern should be equals to "123"');
-  CheckEqualsString('456', i.getRegex.getOptions, 'Pattern should be equals to "456"');
+  CheckEqualsString('123', i.asRegex.getPattern, 'Pattern should be equals to "123"');
+  CheckEqualsString('456', i.asRegex.getOptions, 'Pattern should be equals to "456"');
 end;
 
 procedure TestIBsonBuffer.TestAppendTimeStamp;
@@ -563,8 +555,8 @@ begin
   b := FIBsonBuffer.finish;
   i := b.find(Name);
   Check(i <> nil, 'Iterator should be <> nil');
-  CheckEquals(Value.getTime, i.getTimestamp.getTime, DELTA_DATE, 'Time should be equals to Value.getTime');
-  CheckEquals(Value.getIncrement, i.getTimestamp.getIncrement, DELTA_DATE, 'Increment should be equals to Value.getIncrement');
+  CheckEquals(Value.getTime, i.asTimestamp.getTime, DELTA_DATE, 'Time should be equals to Value.getTime');
+  CheckEquals(Value.getIncrement, i.asTimestamp.getIncrement, DELTA_DATE, 'Increment should be equals to Value.getIncrement');
 end;
 
 procedure TestIBsonBuffer.TestAppendBsonBinary;
@@ -589,8 +581,8 @@ begin
   b := FIBsonBuffer.finish;
   i := b.find(Name);
   Check(i <> nil, 'Iterator should be <> nil');
-  for ii := 0 to i.getBinary.getLen - 1 do
-    CheckEquals(Data[ii], PData(i.getBinary.getData)[ii], 'Data from BsonBinary object doesn''t match');
+  for ii := 0 to i.asBinary.getLen - 1 do
+    CheckEquals(Data[ii], PData(i.asBinary.getData)[ii], 'Data from BsonBinary object doesn''t match');
 end;
 
 procedure TestIBsonBuffer.TestAppendIBson;
@@ -599,7 +591,7 @@ var
   Value: IBson;
   Name: UTF8String;
   b : IBson;
-  i : IBsonIterator;
+  i, sub : IBsonIterator;
 begin
   Name := 'BSFLD';
   Value := BSON(['ID', 1]);
@@ -607,8 +599,10 @@ begin
   Check(ReturnValue, 'ReturnValue should be True');
   b := FIBsonBuffer.finish;
   i := b.find(Name);
-  Check(i <> nil, 'Iterator should be <> nil');
-  CheckEquals(1, i.subiterator.Value, 'Value doesn''t match');
+  Check(i <> nil);
+  sub := i.subiterator;
+  Check(sub.next);
+  CheckEquals(1, sub.value, 'Value doesn''t match');
 end;
 
 procedure TestIBsonBuffer.TestAppendVariant;
@@ -753,9 +747,9 @@ begin
   b := FIBsonBuffer.finish;
   it := b.iterator;
   it.Next;
-  CheckEquals(length(Value), length(it.getIntegerArray), 'Array sizes don''t match');
-  for I := low(it.getIntegerArray) to high(it.getIntegerArray) do
-    CheckEquals(Value[i], it.getIntegerArray[i], 'Items on Integer array don''t match');   
+  CheckEquals(length(Value), length(it.asIntegerArray), 'Array sizes don''t match');
+  for I := low(it.asIntegerArray) to high(it.asIntegerArray) do
+    CheckEquals(Value[i], it.asIntegerArray[i], 'Items on Integer array don''t match');
 end;
 
 procedure TestIBsonBuffer.TestappendDoubleArray;
@@ -776,9 +770,9 @@ begin
   b := FIBsonBuffer.finish;
   it := b.iterator;
   it.Next;
-  CheckEquals(length(Value), length(it.getDoubleArray), 'Array sizes don''t match');
-  for I := low(it.getDoubleArray) to high(it.getDoubleArray) do
-    CheckEquals(Value[i], it.getDoubleArray[i], 'Items on Double array don''t match');
+  CheckEquals(length(Value), length(it.asDoubleArray), 'Array sizes don''t match');
+  for I := low(it.asDoubleArray) to high(it.asDoubleArray) do
+    CheckEquals(Value[i], it.asDoubleArray[i], 'Items on Double array don''t match');
 end;
 
 procedure TestIBsonBuffer.TestappendBooleanArray;
@@ -800,7 +794,7 @@ begin
   b := FIBsonBuffer.finish;
   it := b.iterator;
   it.Next;
-  BoolArrayResult := it.getBooleanArray;
+  BoolArrayResult := it.asBooleanArray;
   CheckEquals(length(Value), length(BoolArrayResult), 'Array sizes don''t match');
   for I := low(BoolArrayResult) to high(BoolArrayResult) do
     CheckEquals(Value[i], BoolArrayResult[i], 'Items on Boolean array don''t match');
@@ -824,9 +818,9 @@ begin
   b := FIBsonBuffer.finish;
   it := b.iterator;
   it.Next;
-  CheckEquals(length(Value), length(it.getStringArray), 'Array sizes don''t match');
-  for I := low(it.getStringArray) to high(it.getStringArray) do
-    CheckEqualsString(Value[i], it.getStringArray[i], 'Items on UTF8String array don''t match');
+  CheckEquals(length(Value), length(it.asStringArray), 'Array sizes don''t match');
+  for I := low(it.asStringArray) to high(it.asStringArray) do
+    CheckEqualsString(Value[i], it.asStringArray[i], 'Items on UTF8String array don''t match');
 end;
 
 procedure TestIBsonBuffer.TestappendNull;
@@ -865,15 +859,13 @@ var
   Value: UTF8String;
   Name: UTF8String;
   b : IBson;
-  i : IBsonIterator;
 begin
   Name := 'CODEFLD';
   Value := '123456';
   ReturnValue := FIBsonBuffer.appendCode(Name, Value);
   Check(ReturnValue, 'ReturnValue should be True');
   b := FIBsonBuffer.finish;
-  i := b.iterator;
-  CheckEqualsString(Value, i.getCodeWScope.getCode, 'Code should be equals to "123456"');
+  CheckEqualsString(Value, b.Value(Name), 'Code should be equals to "123456"');
 end;
 
 procedure TestIBsonBuffer.TestappendSymbol;
@@ -892,31 +884,19 @@ begin
 end;
 
 procedure TestIBsonBuffer.TestappendBinary;
-type
-  PData = ^TData;
-  TData = array [0..15] of Byte;
 const
-  AData : TData = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+  AData : array [0..15] of Byte = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
 var
-  ReturnValue: Boolean;
-  Length: Integer;
-  Data: Pointer;
-  Kind: Integer;
   Name: UTF8String;
   b : IBson;
-  i : integer;
   it : IBsonIterator;
 begin
   Name := 'BINFLD';
-  Length := sizeof(AData);
-  Data := @AData;
-  Kind := 0;
-  ReturnValue := FIBsonBuffer.appendBinary(Name, Kind, Data, Length);
-  Check(ReturnValue, 'ReturnValue should be True');
+  Check(FIBsonBuffer.appendBinary(Name, BSON_SUBTYPE_BINARY, @AData, sizeof(AData)));
   b := FIBsonBuffer.finish;
   it := b.iterator;
-  for i := low(AData) to high(AData) do
-    CheckEquals(AData[i], PData(it.getBinary.getData)^[i], 'Binary data doesn''t match');
+  Check(it.next);
+  Check(CompareMem(@AData, it.asBinary.getData, sizeof(AData)));
 end;
 
 procedure TestIBsonBuffer.TestappendCode_n;
@@ -933,7 +913,8 @@ begin
   Check(ReturnValue, 'ReturnValue should be True');
   b := FIBsonBuffer.finish;
   i := b.iterator;
-  CheckEqualsString('123', i.getCodeWScope.getCode, 'Code should be equals to "123"');
+  Check(i.next);
+  CheckEqualsString('123', i.asCode, 'Code should be equals to "123"');
 end;
 
 procedure TestIBsonBuffer.TestAppendElementsAsArrayOfConst;
@@ -1327,7 +1308,7 @@ begin
   b := FIBsonBuffer.finish;
   it := b.iterator;
   it.Next;
-  Arr := it.getIntegerArray;
+  Arr := it.asIntegerArray;
   CheckEquals(3, length(Arr), 'Array should contain three elements');
   CheckEquals(10, Arr[0], 'First element of array should be equals to 10');
   CheckEquals(20, Arr[1], 'First element of array should be equals to 20');
@@ -1374,12 +1355,13 @@ begin
   Buf.appendDate('DateTime', FNow);
   Buf.Append('Boolean', true);
   Buf.Append('Boolean', false);
-  Buf.appendBinary('BIN', 0, @ABinData, sizeof(ABinData));
+  Buf.appendBinary('BIN', BSON_SUBTYPE_BINARY, @ABinData, sizeof(ABinData));
   SetLength(BoolArr, 2);
   BoolArr[0] := False;
   BoolArr[1] := True;
   Buf.appendArray('BOOLARR', BoolArr);
   Buf.appendCode('CODE', '123456');
+  Buf.appendCodeWithScope('CODE_SCOPE', '666', BSON(['a', 1, 'b', 'c']));
   SetLength(DblArr, 5);
   for I := low(DblArr) to high(DblArr) do
     DblArr[i] := i + 0.5;
@@ -1479,7 +1461,7 @@ var
   i : integer;
 begin
   FIBsonIterator := b.find('BIN');
-  ReturnValue := FIBsonIterator.getBinary;
+  ReturnValue := FIBsonIterator.asBinary;
   for i := low(ABinData) to high(ABinData) do
     CheckEquals(ABinData[i], PBinData(ReturnValue.getData)^[i], 'Binary data doesn''t match');
 end;
@@ -1489,7 +1471,7 @@ var
   ReturnValue: TBooleanArray;
 begin
   FIBsonIterator := b.find('BOOLARR');
-  ReturnValue := FIBsonIterator.getBooleanArray;
+  ReturnValue := FIBsonIterator.asBooleanArray;
   CheckEquals(length(BoolArr), length(ReturnValue), 'Boolean array size doesn''t match');
   CheckEquals(BoolArr[0], ReturnValue[0], 'First element of boolean array doesn''t match');
   CheckEquals(BoolArr[1], ReturnValue[1], 'First element of boolean array doesn''t match');
@@ -1499,10 +1481,11 @@ procedure TestIBsonIterator.TestgetCodeWScope;
 var
   ReturnValue: IBsonCodeWScope;
 begin
-  FIBsonIterator := b.find('CODE');
-  ReturnValue := FIBsonIterator.getCodeWScope;
+  FIBsonIterator := b.find('CODE_SCOPE');
+  ReturnValue := FIBsonIterator.asCodeWScope;
   Check(ReturnValue <> nil, 'BsonCodeWScope object should be <> nil');
-  CheckEqualsString('123456', ReturnValue.getCode, 'Code doesn''t match');
+  CheckEqualsString('666', ReturnValue.getCode, 'Code doesn''t match');
+  CheckEqualsString('{ "a" : 1, "b" : "c" }', ReturnValue.Scope.asJson);
 end;
 
 procedure TestIBsonIterator.TestgetDoubleArray;
@@ -1511,7 +1494,7 @@ var
   i : integer;
 begin
   FIBsonIterator := b.find('DBLARR');
-  ReturnValue := FIBsonIterator.getDoubleArray;
+  ReturnValue := FIBsonIterator.asDoubleArray;
   for i := low(DblArr) to high(DblArr) do
     CheckEquals(DblArr[i], ReturnValue[i], 'Double array element doesn''t match');
 end;
@@ -1522,7 +1505,7 @@ var
   i : integer;
 begin
   FIBsonIterator := b.find('INTARR');
-  ReturnValue := FIBsonIterator.getIntegerArray;
+  ReturnValue := FIBsonIterator.asIntegerArray;
   for i := low(IntArr) to high(IntArr) do
     CheckEquals(IntArr[i], ReturnValue[i], 'Integer array element doesn''t match');
 end;
@@ -1532,7 +1515,7 @@ var
   ReturnValue: IBsonOID;
 begin
   FIBsonIterator := b.find('BSONOID');
-  ReturnValue := FIBsonIterator.getOID;
+  ReturnValue := FIBsonIterator.asOID;
   CheckEqualsString(BsonOID.AsString, ReturnValue.AsString, 'BsonOID doesn''t match');
 end;
 
@@ -1541,7 +1524,7 @@ var
   ReturnValue: IBsonRegex;
 begin
   FIBsonIterator := b.find('BSONREGEX');
-  ReturnValue := FIBsonIterator.getRegex;
+  ReturnValue := FIBsonIterator.asRegex;
   CheckEqualsString(BsonRegEx.getPattern, ReturnValue.getPattern, 'Pattern of RegEx doesn''t match');
   CheckEqualsString(BsonRegEx.getOptions, ReturnValue.getOptions, 'Options of RegEx doesn''t match');
 end;
@@ -1552,7 +1535,7 @@ var
   i : integer;
 begin
   FIBsonIterator := b.find('STRARR');
-  ReturnValue := FIBsonIterator.getStringArray;
+  ReturnValue := FIBsonIterator.asStringArray;
   for i := low(StrArr) to high(StrArr) do
     CheckEqualsString(StrArr[i], ReturnValue[i], 'UTF8String array element doesn''t match');
 end;
@@ -1562,7 +1545,7 @@ var
   ReturnValue: IBsonTimestamp;
 begin
   FIBsonIterator := b.find('TS');
-  ReturnValue := FIBsonIterator.getTimestamp;
+  ReturnValue := FIBsonIterator.asTimestamp;
   CheckEquals(FTimeStamp.getTime, ReturnValue.getTime, DELTA_DATE, 'Timestamp date field doesn''t match');
   CheckEquals(FTimeStamp.getIncrement, ReturnValue.getIncrement, 'Timestamp increment field doesn''t match');
 end;
@@ -1588,28 +1571,23 @@ begin
   FIBsonIterator.next;
 
   ReturnValue := FIBsonIterator.Kind;
-  CheckEquals(integer(bsonSTRING), integer(ReturnValue), 'First element returned by iterator should be bsonSTRING');
+  CheckEquals(integer(BSON_TYPE_UTF8), integer(ReturnValue), 'First element returned by iterator should be bsonSTRING');
   FIBsonIterator.Next;
   FIBsonIterator.Next;
   ReturnValue := FIBsonIterator.Kind;
-  CheckEquals(integer(bsonINT), integer(ReturnValue), 'Second element returned by iterator should be bsonINT');
+  CheckEquals(integer(BSON_TYPE_INT32), integer(ReturnValue), 'Second element returned by iterator should be bsonINT');
   FIBsonIterator.Next;
   FIBsonIterator.Next;
   ReturnValue := FIBsonIterator.Kind;
-  CheckEquals(integer(bsonLONG), integer(ReturnValue), 'Third element returned by iterator should be bsonLONG');
+  CheckEquals(integer(BSON_TYPE_INT64), integer(ReturnValue), 'Third element returned by iterator should be bsonLONG');
 end;
 
 procedure TestIBsonIterator.TestTryToReadPastEnd;
 begin
   FIBsonIterator := b.find('SUBOBJ');
   while FIBsonIterator.Next do;
-  // Here we are not past end of the iterator, attempt to read Kind should return on Exception
-  try
     FIBsonIterator.Kind;
-    Fail('Call to Kind when past end of iterator should result on error');
-  except
-    on E : EBson do CheckEquals(E_ErrorCallingIteratorAtEnd, E.ErrorCode, 'Exception expected calling Kind when iterator is past end');
-  end;
+  FIBsonIterator.Kind;
 end;
 
 procedure TestIBsonIterator.Testsubiterator;
@@ -1653,26 +1631,26 @@ var
   it, it2 : IBsonIterator;
 begin
   b := BSON(['a', 1, 'b', '123', 'subobj', '{', 'c', 3, 'd', '456', '}']);
-  Check(b <> nil, 'value returned from call to BSON should be <> nil');
+  Check(b <> nil);
   it := b.iterator;
-  Check(it <> nil, 'Value returned from call to b.iterator should be <> nil');
-  Check(it.next, 'value returned from call to it.next should be True');
-  CheckEqualsString('a', it.key, 'First key should be equals to a');
-  CheckEquals(1, it.value, 'First element should be equals to 1');
-  Check(it.next, 'value returned from call to it.next should be True');
-  CheckEqualsString('b', it.key, 'Second attribute should be equals to b');
-  CheckEqualsString('123', it.value, 'Second attribute value should be equals to 123');
-  Check(it.next, 'value returned from call to it.next should be True');
+  Check(it <> nil);
+  Check(it.next);
+  CheckEqualsString('a', it.key);
+  CheckEquals(1, it.value);
+  Check(it.next);
+  CheckEqualsString('b', it.key);
+  CheckEqualsString('123', it.value);
+  Check(it.next);
   it2 := it.subiterator;
-  Check(it2 <> nil, 'Value returned from call to it.iterator should be <> nil');
-  Check(it2.next, 'value returned from call to it.next should be True');
-  CheckEqualsString('c', it2.key, 'First subkey should be equals to c');
-  CheckEquals(3, it2.value, 'First sublement should be equals to 3');
-  Check(it2.next, 'value returned from call to it.next should be True');
-  CheckEqualsString('d', it2.key, 'Second subattribute should be equals to b');
-  CheckEqualsString('456', it2.value, 'Second subattribute value should be equals to 456');
-  Check(not it2.next, 'Call to it2.next should be false');
-  Check(not it.next, 'Call to it.next should be false');
+  Check(it2 <> nil);
+  Check(it2.next);
+  CheckEqualsString('c', it2.key);
+  CheckEquals(3, it2.value);
+  Check(it2.next);
+  CheckEqualsString('d', it2.key);
+  CheckEqualsString('456', it2.value);
+  Check(not it2.next);
+  Check(not it.next);
 end;
 
 procedure TestIBson.TestCreateFromJson;
@@ -1692,7 +1670,7 @@ begin
     b := NewBson(UTF8String(BadJson));
     Fail('Call should have failed');
   except
-    on E : ELibBson do Check(pos('Failed creating BSON from JSON', E.Message) = 1);
+    on E : EBson do Check(pos('Failed creating BSON from JSON', E.Message) = 1);
   end;
 end;
 
@@ -1715,14 +1693,6 @@ begin
   ReturnValue := FIBson.find(Name);
   Check(ReturnValue <> nil, 'Call to FIBson.Find should have returned an iterator');
   CheckEqualsString('STR', ReturnValue.Value, 'Iterator.Value should have returned STR');
-end;
-
-procedure TestIBson.TestgetHandle;
-var
-  ReturnValue: Pointer;
-begin
-  ReturnValue := FIBson.getHandle;
-  Check(ReturnValue <> nil, 'Call to FIBson.getHandle should return value <> nil');
 end;
 
 procedure TestIBson.Testiterator;
@@ -1794,7 +1764,7 @@ procedure TestIBson.TestNewBsonCopy;
 var
   ACopy : IBson;
 begin
-  ACopy := NewBsonCopy(FIBson.Handle);
+  ACopy := NewBsonCopy(FIBson);
   CheckEquals(123, ACopy.find('ID').value);
   CheckEqualsString('STR', ACopy.find('S').value);
 end;
@@ -1823,90 +1793,6 @@ begin
   Name := 'ID';
   ReturnValue := FIBson.Value(Name);
   CheckEquals(123, ReturnValue, 'ReturnValue should be equals to 123');
-end;
-
-procedure TestIBson.Testowns;
-var
-  pb, bsonObj, i: Pointer;
-  b : IBson;
-begin
-  // create native bson
-  bsonObj := bson_alloc;
-  bson_init(bsonObj);
-  bson_append_int(bsonObj, PAnsiChar('test'), 3);
-  b := NewBsonBuffer(bsonObj).finish; // b should not own native bson after created by passing handle
-  pb := b.Handle; // point to native bson
-  b := nil; // destroy b
-  // native bson should not be destroyed while destroying b
-  i := bson_iterator_alloc;
-  bson_iterator_init(i, pb);
-  bson_find(i, pb, PAnsiChar('test'));
-  CheckEquals(3, bson_iterator_int(i));
-  bson_iterator_dealloc(i);
-  bson_dealloc_and_destroy(pb);
-
-  b := BSON(['test', 3]); // create bson that owns native bson
-  pb := b.Handle;
-  b := nil;
-  // expect exception while accessing native bson
-  StartExpectingException(EAccessViolation);
-  mongo_cursor_next(pb);
-  StopExpectingException();
-end;
-
-var
-  CustomReturnIntCalled : Boolean;
-  CustomOIDFuzz : Boolean;
-
-function CustomOIDReturnIntFunction: Integer; cdecl;
-begin
-  Result := 0;
-  CustomReturnIntCalled := True;
-end;
-
-function CustomOIDFuzzFunction: Integer; cdecl;
-begin
-  Result := 0;
-  CustomOIDFuzz := True;
-end;
-
-procedure TestBsonAPI.TestLibBsonApis;
-const
-  JSON : PAnsiChar = '{ "str": "hello"}';
-var
-  p : Pointer;
-begin
-  p := libbson_bson_new_from_json(JSON, length(JSON), nil);
-  Check(p <> nil, 'libbson_bson_new_from_json() should return a value <> nil');
-  libbson_bson_destroy(p);
-end;
-
-procedure TestBsonAPI.TestBsonFromJson;
-const
-  JSON : PAnsiChar = '{ "str": "hello"}';
-var
-  p : Pointer;
-  b : IBson;
-  it : IBsonIterator;
-begin
-  p := libbson_bson_new_from_json(JSON, length(JSON), nil);
-  Check(p <> nil, 'libbson_bson_new_from_json() should return a value <> nil');
-  b := NewBson_FromData(libbson_bson_get_data(p));
-  it := b.find('str');
-  Check(it <> nil, 'iterator should be <> nil');
-  CheckEqualsString('hello', it.value, 'value of iterator should be "hello"');
-  b := nil;
-  libbson_bson_destroy(p);
-end;
-
-procedure TestBsonAPI.Test_bson_set_oid_inc;
-begin
-  Check(CustomReturnIntCalled, 'CustomSetOIDIncCalled should be true after creating BsonOID');
-end;
-
-procedure TestBsonAPI.Test_bson_set_oid_fuzz;
-begin
-  Check(CustomOIDFuzz, 'CustomSetOIDIncCalled should be true after creating BsonOID');
 end;
 
 { TestArrayBuildingFunctions }
@@ -2101,7 +1987,6 @@ initialization
   RegisterTest(TestIBsonBinary.Suite);
   RegisterTest(TestIBsonBuffer.Suite);
   RegisterTest(TestIBsonIterator.Suite);
-  RegisterTest(TestBsonAPI.Suite);
   RegisterTest(TestIBson.Suite);
   RegisterTest(TestArrayBuildingFunctions.Suite);
   {$IFDEF OnDemandMongoCLoad}
@@ -2115,13 +2000,5 @@ initialization
     {$ENDIF}
   InitMongoDBLibrary(MongoCDLLName);
   {$ENDIF}
-  bson_set_oid_fuzz(@CustomOIDFuzzFunction);
-  bson_set_oid_inc(@CustomOIDReturnIntFunction);
-  try
-    NewBsonOID;
-  finally
-    bson_set_oid_fuzz(nil);
-    bson_set_oid_inc(nil);
-  end;
 end.
 

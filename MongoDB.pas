@@ -27,7 +27,7 @@ interface
 {$I MongoC_defines.inc}
 
 uses
-  MongoBson, SysUtils, MongoAPI;
+  MongoBson, SysUtils, MongoAPI, Dialogs;
 
 const
   updateUpsert = 1;
@@ -62,6 +62,9 @@ const
   E_TMongoDropExpectedAInTheNamespac = 90006;
   E_ExpectedAInTheNamespace          = 90007;
   E_MongoDBServerError               = 91000;
+  E_BSON_INIT_FAILED                 = 90008;
+
+  function toMongoCBson(const b: IBson): Pointer;
 
 type
   TFindAndModifyOptions = (tfamoNew, tfamoUpsert, tfamoRemove);
@@ -532,6 +535,16 @@ resourcestring
   SExpectedAInTheNamespace = 'Expected a ''.'' in the namespace (D%d)';
 // END resource string wizard section
 
+function toMongoCBson(const b: IBson): Pointer;
+begin
+  Result := bson_alloc;
+  if bson_init_finished_data(Result, PAnsiChar(b.Data), false) <> 0 then
+  begin
+    bson_dealloc(Result);
+    raise EMongo.Create('bson_init_finished_data failed', E_BSON_INIT_FAILED);
+  end;
+end;
+
 procedure parseHost(const host: UTF8String; var hosturl: UTF8String; var port: Integer);
 var
   i: Integer;
@@ -910,10 +923,17 @@ begin
 end;
 
 function TMongo.Insert(const ns: UTF8String; b: IBson): Boolean;
+var
+  doc: Pointer;
 begin
   CheckHandle('Insert(UTF8String; IBson)');
   autoCmdResetLastError(ns, true);
-  Result := mongo_insert(fhandle, PAnsiChar(ns), b.Handle, nil) = 0;
+  doc := toMongoCBson(b);
+  try
+    Result := mongo_insert(fhandle, PAnsiChar(ns), doc, nil) = 0;
+  finally
+    bson_dealloc_and_destroy(doc);
+  end;
   autoCheckCmdLastError(ns, true);
 end;
 
@@ -931,20 +951,31 @@ begin
   GetMem(ps, Len * SizeOf(Pointer));
   try
     for i := 0 to Len - 1 do
-      ps^[i] := bs[i].Handle;
+      ps^[i] := toMongoCBson(bs[i]);
     autoCmdResetLastError(ns, true);
     Result := mongo_insert_batch(fhandle, PAnsiChar(ns), ps, Len, nil, 0) = 0;
     autoCheckCmdLastError(ns, true);
   finally
+    for i := 0 to Len - 1 do
+      bson_dealloc_and_destroy(ps^[i]);
     FreeMem(ps);
   end;
 end;
 
 function TMongo.update(const ns: UTF8String; criteria, objNew: IBson; flags: Integer): Boolean;
+var
+  c, o: Pointer;
 begin
   CheckHandle('update(UTF8String; IBson; IBson; Integer)');
   autoCmdResetLastError(ns, true);
-  Result := mongo_update(fhandle, PAnsiChar(ns), criteria.Handle, objNew.Handle, flags, nil) = 0;
+  c := toMongoCBson(criteria);
+  o := toMongoCBson(objNew);
+  try
+  Result := mongo_update(fhandle, PAnsiChar(ns), c, o, flags, nil) = 0;
+  finally
+    bson_dealloc_and_destroy(c);
+    bson_dealloc_and_destroy(o);
+  end;
   autoCheckCmdLastError(ns, true);
 end;
 
@@ -954,65 +985,85 @@ begin
 end;
 
 function TMongo.remove(const ns: UTF8String; criteria: IBson): Boolean;
+var
+  c: Pointer;
 begin
   CheckHandle('remove');
   autoCmdResetLastError(ns, true);
-  Result := mongo_remove(fhandle, PAnsiChar(ns), criteria.Handle, nil) = 0;
+  c := toMongoCBson(criteria);
+  try
+    Result := mongo_remove(fhandle, PAnsiChar(ns), c, nil) = 0;
+  finally
+    bson_dealloc_and_destroy(c);
+  end;
   autoCheckCmdLastError(ns, true);
 end;
 
 function TMongo.findOne(const ns: UTF8String; query, fields: IBson): IBson;
 var
-  res: Pointer;
+  q, f, b: Pointer;
 begin
   CheckHandle('findOne');
-  res := bson_create;
+  q := toMongoCBson(query);
+  if fields <> nil then
+    f := toMongoCBson(fields)
+  else
+    f := bson_shared_empty;
+  b := bson_create;
   try
     autoCmdResetLastError(ns, true);
-    if mongo_find_one(fhandle, PAnsiChar(ns), query.Handle, fields.Handle, res) = 0 then
-      Result := NewBson(res)
+    if mongo_find_one(fhandle, PAnsiChar(ns), q, f, b) = 0 then
+      Result := NewBson(bson_data(b), bson_size(b))
     else
-    begin
-      bson_dealloc_and_destroy(res);
-      res := nil;
       Result := nil;
-    end;
     autoCheckCmdLastError(ns, true);
-  except
-    if res <> nil then
-      bson_dealloc_and_destroy(res);
-    raise;
+  finally
+    bson_dealloc_and_destroy(b);
+    bson_dealloc_and_destroy(q);
+    if f <> bson_shared_empty  then
+      bson_dealloc_and_destroy(f);
   end;
 end;
 
 function TMongo.findOne(const ns: UTF8String; query: IBson): IBson;
 begin
-  Result := findOne(ns, query, NewBson(nil));
+  Result := findOne(ns, query, nil);
 end;
 
 function TMongo.find(const ns: UTF8String; Cursor: IMongoCursor): Boolean;
 var
-  q: IBson;
-  bb: IBsonBuffer;
+  q, f, s: Pointer;
+  bb: Pointer;
   ch: Pointer;
 begin
   CheckHandle('find');
+  s := nil;
   if Cursor.fields = nil then
-    Cursor.fields := bsonEmpty;
-  q := Cursor.query;
-  if q = nil then
-    q := bsonEmpty;
+    f := bson_shared_empty
+  else
+    f := toMongoCBson(Cursor.fields);
+  if Cursor.query = nil then
+    q := bson_shared_empty
+  else
+    q := toMongoCBson(Cursor.query);
   if Cursor.Sort <> nil then
   begin
-    bb := NewBsonBuffer;
-    bb.Append(SQuery, q);
-    bb.Append(SSort, Cursor.Sort);
-    q := bb.finish;
+    s := toMongoCBson(Cursor.Sort);
+
+    bb := bson_alloc;
+    bson_init(bb);
+    bson_append_bson(bb, SQuery, q);
+    bson_append_bson(bb, SSort, s);
+    bson_finish(bb);
+    if q <> bson_shared_empty then
+      bson_dealloc_and_destroy(q);
+    q := bb;
   end;
+
   Cursor.conn := Self;
   autoCmdResetLastError(ns, true);
   try
-    ch := mongo_find(fhandle, PAnsiChar(ns), q.Handle, Cursor.fields.Handle, Cursor.limit, Cursor.skip, Cursor.options);
+    ch := mongo_find(fhandle, PAnsiChar(ns), q, f, Cursor.limit, Cursor.skip, Cursor.options);
     autoCheckCmdLastError(ns, true);
     if ch <> nil then
     begin
@@ -1023,6 +1074,11 @@ begin
       Result := false;
   finally
     Cursor.FindCalled;
+    if q <> bson_shared_empty then
+      bson_dealloc_and_destroy(q);
+    if f <> bson_shared_empty then
+      bson_dealloc_and_destroy(f);
+    bson_dealloc_and_destroy(s);
   end;
 end;
 
@@ -1030,20 +1086,29 @@ function TMongo.count(const ns: UTF8String; query: IBson): Double;
 var
   db: UTF8String;
   collection: UTF8String;
+  q: Pointer;
 begin
   CheckHandle('count(UTF8String; IBson)');
   parseNamespace(ns, db, collection);
   if db = '' then
     raise EMongo.Create(SExpectedAInTheNamespace, E_ExpectedAInTheNamespace);
   autoCmdResetLastError(db, false);
-  Result := mongo_count(fhandle, PAnsiChar(db), PAnsiChar(collection), query.Handle);
+  if query = nil then
+    q := nil
+  else
+    q := toMongoCBson(query);
+  try
+    Result := mongo_count(fhandle, PAnsiChar(db), PAnsiChar(collection), q);
+  finally
+    bson_dealloc_and_destroy(q);
+  end;
   autoCheckCmdLastError(db, false);
 end;
 
 function TMongo.count(const ns: UTF8String): Double;
 begin
   autoCmdResetLastError(ns, true);
-  Result := count(ns, NewBson(nil));
+  Result := count(ns, nil);
   autoCheckCmdLastError(ns, true);
 end;
 
@@ -1149,16 +1214,18 @@ end;
 
 function TMongo.command(const db: UTF8String; command: IBson): IBson;
 var
-  res: Pointer;
+  res, cmd: Pointer;
 begin
   CheckHandle('command');
   res := bson_create;
+  cmd := toMongoCBson(command);
   try
-    if mongo_run_command(fhandle, PAnsiChar(db), command.Handle, res) = 0 then
-      Result := NewBsonCopy(res)
+    if mongo_run_command(fhandle, PAnsiChar(db), cmd, res) = 0 then
+      Result := NewBson(bson_data(res), bson_size(res))
     else Result := nil;
   finally
     bson_dealloc_and_destroy(res);
+    bson_dealloc_and_destroy(cmd);
   end;
 end;
 
@@ -1191,7 +1258,7 @@ begin
   res := bson_create;
   try
     if mongo_cmd_get_last_error(fhandle, PAnsiChar(db), res) <> 0 then
-      Result := NewBsonCopy(res)
+      Result := NewBson(bson_data(res), bson_size(res))
     else
       Result := nil;
   finally
@@ -1201,23 +1268,17 @@ end;
 
 function TMongo.cmdGetLastError(const db: UTF8String): IBson;
 var
-  h: Pointer;
+  b: Pointer;
 begin
   CheckHandle('cmdGetLastError');
-  h := bson_create;
+  b := bson_create;
   try
-    if mongo_cmd_get_last_error(fHandle, PAnsiChar(db), h) = 0 then
-    begin
-      bson_dealloc_and_destroy(h);
-      h := nil;
-      Result := nil;
-    end
+    if mongo_cmd_get_last_error(fHandle, PAnsiChar(db), b) = 0 then
+      Result := nil
     else
-      Result := NewBson(h);
-  except
-    if h <> nil then
-      bson_dealloc_and_destroy(h);
-    raise;
+      Result := NewBson(bson_data(b), bson_size(b));
+  finally
+    bson_dealloc_and_destroy(b);
   end;
 end;
 
@@ -1290,7 +1351,7 @@ begin
   res := bson_create;
   try
     if mongo_cmd_get_prev_error(fhandle, PAnsiChar(db), res) <> 0 then
-      Result := NewBsonCopy(res)
+      Result := NewBson(bson_data(res), bson_size(res))
     else
       Result := nil;
   finally
@@ -1319,28 +1380,29 @@ function TMongo.indexCreate(const ns: UTF8String; key: IBson; const name:
     UTF8String; options: Integer): IBson;
 var
   res: IBson;
-  created: Boolean;
-  h: Pointer;
+  b, k: Pointer;
   AName : PAnsiChar;
 begin
   CheckHandle('indexCreate');
-  h := bson_create;
-  try
-    res := NewBson(h);
-  except
-    bson_dealloc_and_destroy(h);
-    raise;
-  end;
   autoCmdResetLastError(ns, true);
+
   if Name <> '' then
     AName := PAnsiChar(Name)
-  else AName := nil;
-  created := mongo_create_index(fhandle, PAnsiChar(ns), key.Handle, AName, options, -1, res.Handle) = 0;
-  autoCheckCmdLastError(ns, true);
-  if not created then
-    Result := res
   else
-    Result := nil;
+    AName := nil;
+
+  b := bson_create;
+  k := toMongoCBson(key);
+  try
+    if mongo_create_index(fhandle, PAnsiChar(ns), k, AName, options, -1, b) = 0 then
+      res := nil
+    else
+      res := NewBson(bson_data(b), bson_size(b));
+    autoCheckCmdLastError(ns, true);
+  finally
+    bson_dealloc_and_destroy(b);
+    bson_dealloc_and_destroy(k);
+  end;
 end;
 
 class procedure TMongo.InitCustomBsonOIDFns;
@@ -1553,9 +1615,12 @@ begin
 end;
 
 function TMongoCursor.value: IBson;
+var
+  b: Pointer;
 begin
   CheckHandle('value');
-  Result := NewBsonCopy(mongo_cursor_bson(Handle));
+  b := mongo_cursor_bson(Handle);
+  Result := NewBson(bson_data(b), bson_size(b));
 end;
 
 function NewMongoCursor: IMongoCursor;
@@ -1601,7 +1666,7 @@ var
 begin
   ACmd := mongo_write_concern_get_cmd(FWriteConcern);
   if ACmd <> nil then
-    Result := NewBsonCopy(ACmd)
+    Result := NewBson(bson_data(ACmd), bson_size(ACmd))
   else Result := nil;
 end;
 
