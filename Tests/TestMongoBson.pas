@@ -232,7 +232,7 @@ var
 begin
   for i := 0 to sizeof(AValue) - 1 do
     AValue[i] := i;
-  FIBsonOID.setValue(AValue);
+  FIBsonOID.setValue(@AValue);
   for I := 0 to sizeof(AValue) - 1 do
     CheckEquals(i, FIBsonOID.getValue[i], 'All values of BSONID should be zero');
 end;

@@ -112,17 +112,18 @@ type
   end;
 
   TBsonOIDBytes = array[0..11] of Byte;
+  PBsonOIDBytes = ^TBsonOIDBytes;
   TBsonOIDString = array[0..24] of AnsiChar;
   { A TBsonOID is used to store BSON Object IDs.
     See http://www.mongodb.org/display/DOCS/Object+IDs }
   IBsonOID = interface
     ['{9DFE3466-DCB0-421F-92A9-F7C4209161C9}']
-    procedure setValue(const AValue: TBsonOIDBytes);
-    function getValue: TBsonOIDBytes;
+    procedure setValue(const AValue: PBsonOIDBytes);
+    function getValue: PBsonOIDBytes;
     { Convert this Object ID to a 24-digit hex string }
     function asString: UTF8String;
     { the oid data }
-    property Value : TBsonOIDBytes read getValue write setValue;
+    property Value : PBsonOIDBytes read getValue write setValue;
   end;
 
   IOidGenerator = interface
@@ -415,9 +416,6 @@ procedure AppendToVarRecArray(const Arr : array of const; var TargetArray : TVar
                       '}' ]);
 #) *)
 
-function DefaultOidGenerator: IOidGenerator; // Use this to generate OIDs using MongoDB global generator
-function NullOidGenerator: IOidGenerator; // Use this to create an OID without generating a default OID
-
 function BSON(const x: array of Variant): IBson;
 
 { Create an empty TBsonBuffer ready to have fields appended }
@@ -528,8 +526,8 @@ type
   TBsonOID = class(TInterfacedObject, IBsonOID)
   private
     FValue: TBsonOIDBytes;
-    function getValue: TBsonOIDBytes;
-    procedure setValue(const AValue: TBsonOIDBytes);
+    function getValue: PBsonOIDBytes;
+    procedure setValue(const AValue: PBsonOIDBytes);
   public
     constructor Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}); overload;
     constructor Create(const s: UTF8String); overload;
@@ -715,12 +713,6 @@ type
     function asJson: UTF8String;
   end;
 
-  TMongoGlobalOidGenerator = class(TInterfacedObject, IOidGenerator)
-  protected
-    function getHandle: Pointer;
-    procedure gen(oid : IBsonOID);
-  end;
-
 var
   AStart_Object : TObject;
   AEnd_Object : TObject;
@@ -792,15 +784,12 @@ begin
 end;
 
 constructor TBsonOID.Create(oid: IBsonOID);
-var
-  b: TBsonOIDBytes;
 begin
   inherited Create;
   {$IFDEF OnDemandMongoCLoad}
   InitMongoDBLibrary;
   {$ENDIF}
-  b := oid.getValue;
-  Move(b, FValue, sizeof(TBsonOIDBytes));
+  FValue := oid.Value^;
 end;
 
 function TBsonOID.asString: UTF8String;
@@ -811,14 +800,14 @@ begin
   Result := UTF8String(buf);
 end;
 
-function TBsonOID.getValue: TBsonOIDBytes;
+function TBsonOID.getValue: PBsonOIDBytes;
 begin
-  Result := FValue;
+  Result := @FValue;
 end;
 
-procedure TBsonOID.setValue(const AValue: TBsonOIDBytes);
+procedure TBsonOID.setValue(const AValue: PBsonOIDBytes);
 begin
-  FValue := AValue;
+  FValue := AValue^;
 end;
 
 { TBsonIterator }
@@ -1134,11 +1123,8 @@ begin
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonOID): Boolean;
-var
-  b: TBsonOIDBytes;
 begin
-  b := Value.getValue;
-  Result := bson_append_oid(GetCurrNativeBson, PAnsiChar(Name), -1, bson_oid_p(@b));
+  Result := bson_append_oid(GetCurrNativeBson, PAnsiChar(Name), -1, bson_oid_p(Value.Value));
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonCodeWScope):
@@ -2002,29 +1988,6 @@ begin
   Result := ANull_Element;
 end;
 
-procedure TMongoGlobalOidGenerator.gen(oid : IBsonOID);
-var
-  oidValue : TBsonOIDBytes;
-begin
-  bson_oid_init(@oidValue, nil);
-  oid.setValue(oidValue);
-end;
-
-function TMongoGlobalOidGenerator.getHandle: Pointer;
-begin
-  Result := nil;
-end;
-
-function DefaultOidGenerator: IOidGenerator;
-begin
-  Result := ADefaultOidGenerator;
-end;
-
-function NullOidGenerator: IOidGenerator;
-begin
-  Result := nil;
-end;
-
 { Utility functions to create Dynamic Arrays from Open Array parameters }
 
 function MkVarRecArray(const Arr : array of const): TVarRecArray;
@@ -2171,7 +2134,6 @@ initialization
   AStart_Array := TObject.Create;
   AEnd_Array := TObject.Create;
   ANull_Element := TObject.Create;
-  ADefaultOidGenerator := TMongoGlobalOidGenerator.Create;
 finalization
   ADefaultOidGenerator := nil;
   absonEmpty := nil;

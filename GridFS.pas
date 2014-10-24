@@ -696,7 +696,7 @@ begin
   CheckHandle;
   oid := gridfile_get_id(FHandle);
   Result := NewBsonOID;
-  Result.setValue(TBsonOIDBytes(oid));
+  Result.setValue(PBsonOIDBytes(@oid));
 end;
 
 function TGridfile.getStoredChunkCount: UInt64;
@@ -709,7 +709,7 @@ begin
   CheckHandle;
   id := gridfile_get_id(FHandle);
   oid := NewBsonOID;
-  oid.setValue(TBsonOIDBytes(id));
+  oid.setValue(PBsonOIDBytes(@id));
   buf := NewBsonBuffer;
   buf.Append(SFiles_id, oid);
   q := buf.finish;
