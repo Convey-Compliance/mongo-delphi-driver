@@ -435,8 +435,8 @@ function NewBsonCodeWScope(const acode: UTF8String; ascope: IBson): IBsonCodeWSc
   CODEWSCOPE field. }
 function NewBsonCodeWScope(i: IBsonIterator): IBsonCodeWScope; overload;
 
-{ Generate an Object ID. When using with ServiceBus, *mandatory* to pass IOidGenerator interface }
-function NewBsonOID({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}): IBsonOID; overload;
+{ Generate an Object ID. }
+function NewBsonOID: IBsonOID; overload;
 { Create an ObjectID from a 24-digit hex string }
 function NewBsonOID(const s : UTF8String): IBsonOID; overload;
 { Create an Object ID from a TBsonIterator pointing to an oid field }
@@ -530,7 +530,7 @@ type
     function getValue: PBsonOIDBytes;
     procedure setValue(const AValue: PBsonOIDBytes);
   public
-    constructor Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}); overload;
+    constructor Create; overload;
     constructor Create(const s: UTF8String); overload;
     constructor Create(i: IBsonIterator); overload;
     constructor Create(oid: IBsonOID); overload;
@@ -750,15 +750,10 @@ end;
 
 { TBsonOID }
 
-constructor TBsonOID.Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF});
+constructor TBsonOID.Create;
 begin
   inherited Create;
-  {$IFDEF SVCBUS}
-  if OidGenerator <> nil then
-    OidGenerator.gen(self);
-  {$ELSE}
   bson_oid_init(@FValue, nil);
-  {$ENDIF}
 end;
 
 constructor TBsonOID.Create(const s: UTF8String);
@@ -1845,9 +1840,9 @@ begin
   Result := TBsonOID.Create(oid);
 end;
 
-function NewBsonOID({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF}): IBsonOID; overload;
+function NewBsonOID: IBsonOID; overload;
 begin
-  Result := TBsonOID.Create({$IFDEF SVCBUS} OidGenerator {$ENDIF});
+  Result := TBsonOID.Create;
 end;
 
 function NewBsonOID(const s : UTF8String): IBsonOID; overload;
