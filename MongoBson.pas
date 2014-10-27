@@ -14,8 +14,8 @@
     limitations under the License.
 }
 
-{ Use define OnDemandMongoCLoad if you want the MongoC.dll library to be loaded dynamically upon first use of a TMongo or
-  TMongoReplset object }
+{ Use define OnDemandMongoCLoad if you want the MongoC.dll library to be loaded dynamically
+  upon InitMongoDBLibrary call }
 
 { This unit implements BSON, a binary JSON-like document format.
   It is used to represent documents in MongoDB and also for network traffic.
@@ -753,9 +753,6 @@ end;
 constructor TBsonOID.Create({$IFDEF SVCBUS} OidGenerator : IOidGenerator {$ENDIF});
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   {$IFDEF SVCBUS}
   if OidGenerator <> nil then
     OidGenerator.gen(self);
@@ -767,9 +764,6 @@ end;
 constructor TBsonOID.Create(const s: UTF8String);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   if Length(s) <> 24 then
     raise Exception.Create(SExpectedA24DigitHexString);
   bson_oid_init_from_string(@FValue, PAnsiChar(s));
@@ -778,18 +772,12 @@ end;
 constructor TBsonOID.Create(i: IBsonIterator);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   FValue := TBsonOIDBytes(bson_iter_oid(i.getHandle)^);
 end;
 
 constructor TBsonOID.Create(oid: IBsonOID);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   FValue := oid.Value^;
 end;
 
@@ -816,9 +804,6 @@ end;
 constructor TBsonIterator.Create(const it: bson_iter_t);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   FNativeIter := it;
 end;
 
@@ -1036,10 +1021,6 @@ end;
 constructor TBsonBuffer.Create;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
-
   bson_init(@FNativeBson);
   FSubNativeBson := TStack.Create;
 end;
@@ -1535,9 +1516,6 @@ end;
 constructor TBson.Create(const bson: bson_t);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   bson_copy_to(@bson, @FNativeBson);
 end;
 
@@ -1546,9 +1524,6 @@ var
   p: Pointer;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   p := bson_new_from_data(AData, len);
   if p = nil then
     raise EBson.Create(S_FAILED_TO_INIT_BSON_FROM_DATA, E_FAILED_TO_INIT_BSON_FROM_DATA);
@@ -1561,9 +1536,6 @@ var
   err: bson_error_t;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   if not bson_init_from_json(@FNativeBson, PAnsiChar(json), length(json), @err) then
     raise EBson.CreateFmt(SFailedCreatingBSONFromJSON, [UTF8String(err.message), err.domain, err.code]);
 end;
@@ -1648,9 +1620,6 @@ end;
 constructor TBsonCodeWScope.Create(const acode: UTF8String; ascope: IBson);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   code := acode;
   scope := ascope;
 end;
@@ -1661,9 +1630,6 @@ var
   len, scope_len: LongWord;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   code := UTF8String(bson_iter_codewscope(i.getHandle, @len, @scope_len, @p));
   scope := TBson.Create(p, scope_len);
 end;
@@ -1693,9 +1659,6 @@ end;
 constructor TBsonRegex.Create(const apattern, aoptions: UTF8String);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   pattern := apattern;
   options := aoptions;
 end;
@@ -1705,9 +1668,6 @@ var
   p: PAnsiChar;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   pattern := UTF8String(bson_iter_regex(i.getHandle, @p));
   options := UTF8String(p);
 end;
@@ -1737,9 +1697,6 @@ end;
 constructor TBsonTimestamp.Create(atime: TDateTime; aincrement: LongWord);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   Time := atime;
   increment := aincrement;
 end;
@@ -1749,9 +1706,6 @@ var
   t: LongWord;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   bson_iter_timestamp(i.getHandle, @t, @increment);
   Time := t / (60 * 60 * 24) + DATE_ADJUSTER;
 end;
@@ -1781,9 +1735,6 @@ end;
 constructor TBsonBinary.Create(p: PByte; Length: LongWord);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   GetMem(Data, Length);
   Move(p^, Data^, Length);
   Kind := BSON_SUBTYPE_BINARY;
@@ -1795,9 +1746,6 @@ var
   p: PByte;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   bson_iter_binary(i.getHandle, @Kind, @Len, @p);
   GetMem(Data, Len);
   Move(p^, Data^, Len);

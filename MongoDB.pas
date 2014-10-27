@@ -14,8 +14,8 @@
     limitations under the License.
 }
 
-{ Use define OnDemandMongoCLoad if you want the MongoC.dll library to be loaded dynamically upon first use of a TMongo or
-  TMongoReplset object }
+{ Use define OnDemandMongoCLoad if you want the MongoC.dll library to be loaded dynamically
+  upon InitMongoDBLibrary call }
 
 { This unit implements the TMongo connection class for connecting to a MongoDB server
   and performing database operations on that server. }
@@ -667,9 +667,6 @@ type
 constructor TMongo.Create;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   InitCustomBsonOIDFns;
   AutoCheckLastError := true;
   InitMongo(S127001 + S27017);
@@ -678,9 +675,6 @@ end;
 constructor TMongo.Create(const host: UTF8String);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   InitCustomBsonOIDFns;
   AutoCheckLastError := true;
   if host = ''
@@ -1469,18 +1463,12 @@ end;
 constructor TMongoCursor.Create;
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   Init;
 end;
 
 constructor TMongoCursor.Create(aquery: IBson);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   Init;
   query := aquery;
 end;

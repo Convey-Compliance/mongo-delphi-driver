@@ -309,9 +309,6 @@ type
 constructor TGridFS.Create(mongo: TMongo; const db, prefix: UTF8String);
 begin
   inherited Create;
-  {$IFDEF OnDemandMongoCLoad}
-  InitMongoDBLibrary;
-  {$ENDIF}
   FPrefix := prefix;
   fdb := db;
   conn := mongo;
