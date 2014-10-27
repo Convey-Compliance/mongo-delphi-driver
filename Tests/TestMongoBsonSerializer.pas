@@ -660,7 +660,7 @@ var
   arr: TSubObjectArray;
   I: Integer;
   b: IBson;
-  it, subit: IBsonIterator;
+  it, subit, subsubit: IBsonIterator;
 begin
   SetLength(arr, 3);
   for I := 0 to Length(arr) - 1 do
@@ -689,13 +689,16 @@ begin
   begin
     Check(subit.next);
     Check(BSON_TYPE_DOCUMENT = subit.Kind);
-    with subit.subiterator do
+    subsubit := subit.subiterator;
     begin
-      Check(next);
-      CheckEqualsString('IntSubObject', AsUTF8String);
-      Check(next);
-      CheckEquals(arr[I].TheInt, AsInteger);
-      CheckFalse(next);
+      Check(subsubit.next);
+      CheckEqualsString(SERIALIZED_ATTRIBUTE_ACTUALTYPE, subsubit.key);
+      CheckEqualsString('IntSubObject', subsubit.AsUTF8String);
+      Check(subsubit.next);
+      Check(subsubit.Kind = BSON_TYPE_INT32);
+      CheckEqualsString('TheInt', subsubit.key);
+      CheckEquals(arr[I].TheInt, subsubit.AsInteger);
+      CheckFalse(subsubit.next);
     end;
   end;
   CheckFalse(subit.next);

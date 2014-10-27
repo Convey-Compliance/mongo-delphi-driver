@@ -89,6 +89,7 @@
     <DCCReference Include="TestMongoDB.pas" />
     <DCCReference Include="TestMongoPool.pas" />
     <DCCReference Include="TestMongoStream.pas" />
+    <DCCReference Include="uMain.pas" />
   </ItemGroup>
 </Project>
 <!-- EurekaLog First Line

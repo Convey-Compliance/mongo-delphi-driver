@@ -1587,7 +1587,8 @@ begin
   FIBsonIterator := b.find('SUBOBJ');
   while FIBsonIterator.Next do;
     FIBsonIterator.Kind;
-  FIBsonIterator.Kind;
+  CheckFalse(FIBsonIterator.Next);
+  Check(BSON_TYPE_EOD = FIBsonIterator.Kind);
 end;
 
 procedure TestIBsonIterator.Testsubiterator;
@@ -1973,11 +1974,6 @@ begin
   Check(not Arr[6].VBoolean, 'Arr[6] value doesn''t match');
 end;
 
-{$IFDEF OnDemandMongoCLoad}
-var
-  MongoCDLLName : UTF8String;
-{$ENDIF}
-
 initialization
   // Register any test cases with the test runner
   RegisterTest(TestIBsonOID.Suite);
@@ -1989,16 +1985,5 @@ initialization
   RegisterTest(TestIBsonIterator.Suite);
   RegisterTest(TestIBson.Suite);
   RegisterTest(TestArrayBuildingFunctions.Suite);
-  {$IFDEF OnDemandMongoCLoad}
-  if (ParamStr(1) = '') or (CompareText(ExtractFileExt(ParamStr(1)), '.dll') <> 0) then
-    MongoCDLLName := Default_MongoCDLL
-  else
-    {$IFDEF Enterprise}
-    MongoCDLLName := Default_MongoCDLL;
-    {$Else}
-    MongoCDLLName := ParamStr(1);
-    {$ENDIF}
-  InitMongoDBLibrary(MongoCDLLName);
-  {$ENDIF}
 end.
 

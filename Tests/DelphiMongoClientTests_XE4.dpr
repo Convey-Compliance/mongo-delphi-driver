@@ -7,12 +7,7 @@ program DelphiMongoClientTests_XE4;
 uses
   {$IFDEF FASTMM}
   FastMM4,
-  {$ENDIF }
-  SysUtils,
-  Forms,
-  TestFramework,
-  GUITestRunner,
-  XmlTestRunner2,
+  {$ENDIF}
   TestMongoDB in 'TestMongoDB.pas',
   TestMongoBson in 'TestMongoBson.pas',
   TestGridFS in 'TestGridFS.pas',
@@ -31,18 +26,9 @@ uses
   MongoStream in '..\MongoStream.pas',
   uAllocators in '..\uAllocators.pas',
   uCnvDictionary in '..\uCnvDictionary.pas',
-  uWinProcHelper in '..\uWinProcHelper.pas';
-
-var
-  xml_filename: string;
-
+  uWinProcHelper in '..\uWinProcHelper.pas',
+  uMain in 'uMain.pas';
 begin
-  if IsConsole then
-  begin
-    xml_filename := ChangeFileExt(ExtractFileName(Application.ExeName), '.xml');
-    XMLTestRunner2.RunRegisteredTests(xml_filename);
-  end
-  else
-    GUITestRunner.RunRegisteredTests;
+  Main;
 end.
 

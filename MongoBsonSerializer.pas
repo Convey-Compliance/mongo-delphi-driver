@@ -380,7 +380,7 @@ var
   dynArrayElementInfo: PPTypeInfo;
 begin
   case APropInfo.PropType^.Kind of
-    tkInteger : Target.append(APropInfo.Name, GetOrdProp(ASource, APropInfo));
+    tkInteger : Target.append(APropInfo.Name, LongInt(GetOrdProp(ASource, APropInfo)));
     tkInt64 : Target.append(APropInfo.Name, GetInt64Prop(ASource, APropInfo));
     tkChar : Target.append(APropInfo.Name, UTF8String(AnsiChar(GetOrdProp(ASource, APropInfo))));
     {$IFDEF DELPHIXE}

@@ -8,7 +8,8 @@ uses
   Windows, SysUtils;
 
 const
-  MongoC_DllVersion = '1-0-1'; (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
+  (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
+  MongoC_DllVersion = '1-0-1';
 
   CPUType = {$IFDEF WIN64} '64' {$ELSE} '32' {$ENDIF};
   ConfigType = {$IFDEF DEBUG} 'd' {$ELSE} 'r' {$ENDIF};
@@ -617,8 +618,8 @@ implementation
 
 {$IFDEF OnDemandMongoCLoad}
 resourcestring
-  SFailedLoadingMongocDll = 'Failed loading mongoc.dll';
-  SFunctionNotFoundOnMongoCLibrary = 'Function "%s" not found on MongoC library';
+  SFailedLoadingMongocDll = 'Failed loading %s';
+  SFunctionNotFoundOnMongoCLibrary = 'Function "%s" not found on %s library';
 {$ENDIF}
 
 procedure DefaultMongoErrorHandler(const Msg : PAnsiChar); cdecl;
@@ -659,7 +660,7 @@ procedure InitMongoDBLibrary(const MongoCDLL : UTF8String = Default_MongoCDLL);
   begin
     Result := Windows.GetProcAddress(h, PAnsiChar(FnName));
     if Result = nil then
-      raise Exception.CreateFmt(SFunctionNotFoundOnMongoCLibrary, [FnName]);
+      raise Exception.CreateFmt(SFunctionNotFoundOnMongoCLibrary, [FnName, MongoCDLL]);
   end;
 begin
   if HMongoDBDll <> 0 then
@@ -668,7 +669,7 @@ begin
     UsedDLLName := MongoCDLL;
   HMongoDBDll := LoadLibraryA(PAnsiChar(UsedDLLName));
   if HMongoDBDll = 0 then
-    raise Exception.Create(SFailedLoadingMongocDll);
+    raise Exception.CreateFmt(SFailedLoadingMongocDll, [MongoCDLL]);
   // MongoDB initializations
   set_mem_alloc_functions := GetProcAddress(HMongoDBDll, 'set_mem_alloc_functions');
   mongo_env_sock_init := GetProcAddress(HMongoDBDll, 'mongo_env_sock_init');
@@ -803,6 +804,7 @@ begin
   bson_iterator_bin_data := GetProcAddress(HMongoDBDll, 'bson_iterator_bin_data');
   set_bson_err_handler := GetProcAddress(HMongoDBDll, 'set_bson_err_handler');
   // GridFS functions
+  bson_shared_empty := GetProcAddress(HMongoDBDll, 'bson_shared_empty');
   gridfs_alloc := GetProcAddress(HMongoDBDll, 'gridfs_alloc');
   gridfs_dealloc := GetProcAddress(HMongoDBDll, 'gridfs_dealloc');
   gridfs_init := GetProcAddress(HMongoDBDll, 'gridfs_init');
