@@ -1734,23 +1734,7 @@ begin
   CheckEquals(101, fwc.w);
 end;
 
-{$IFDEF OnDemandMongoCLoad}
-var
-  MongoCDLLName : UTF8String;
-{$ENDIF}
-
 initialization
-  {$IFDEF OnDemandMongoCLoad}
-  if (ParamStr(1) = '') or (CompareText(ExtractFileExt(ParamStr(1)), '.dll') <> 0) then
-    MongoCDLLName := Default_MongoCDLL
-  else
-    {$IFDEF Enterprise}
-    MongoCDLLName := Default_MongoCDLL;
-    {$Else}
-    MongoCDLLName := ParamStr(1);
-    {$ENDIF}
-  InitMongoDBLibrary(MongoCDLLName);
-  {$ENDIF}
   bsonEmpty; // Call bsonEmpty on initialization to avoid reporting of memory leak when enabled
   // Register any test cases with the test runner
   RegisterTest(TestTMongo.Suite);
