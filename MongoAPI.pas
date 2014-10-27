@@ -804,6 +804,7 @@ begin
   bson_iterator_bin_data := GetProcAddress(HMongoDBDll, 'bson_iterator_bin_data');
   set_bson_err_handler := GetProcAddress(HMongoDBDll, 'set_bson_err_handler');
   // GridFS functions
+  bson_shared_empty := GetProcAddress(HMongoDBDll, 'bson_shared_empty');
   gridfs_alloc := GetProcAddress(HMongoDBDll, 'gridfs_alloc');
   gridfs_dealloc := GetProcAddress(HMongoDBDll, 'gridfs_dealloc');
   gridfs_init := GetProcAddress(HMongoDBDll, 'gridfs_init');

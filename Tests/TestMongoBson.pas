@@ -1587,7 +1587,8 @@ begin
   FIBsonIterator := b.find('SUBOBJ');
   while FIBsonIterator.Next do;
     FIBsonIterator.Kind;
-  FIBsonIterator.Kind;
+  CheckFalse(FIBsonIterator.Next);
+  Check(BSON_TYPE_EOD = FIBsonIterator.Kind);
 end;
 
 procedure TestIBsonIterator.Testsubiterator;

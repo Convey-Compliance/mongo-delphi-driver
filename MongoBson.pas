@@ -1066,7 +1066,7 @@ begin
   Result := bson_append_symbol(GetCurrNativeBson, PAnsiChar(Name), -1, PAnsiChar(Value), -1);
 end;
 
-function TBsonBuffer.append(const Name: UTF8String; Value: Integer): Boolean;
+function TBsonBuffer.append(const Name: UTF8String; Value: LongInt): Boolean;
 begin
   Result := bson_append_int32(GetCurrNativeBson, PAnsiChar(Name), -1, Value);
 end;
@@ -1200,7 +1200,10 @@ end;
 function TBsonBuffer.appendBinary(const Name: UTF8String; Kind: TBsonSubtype; const Data:
     PByte; Length: LongWord): Boolean;
 begin
-  Result := bson_append_binary(GetCurrNativeBson, PAnsiChar(Name), -1, Kind, Data, Length);
+  if Data = nil then
+    Result := false
+  else
+    Result := bson_append_binary(GetCurrNativeBson, PAnsiChar(Name), -1, Kind, Data, Length);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBson): Boolean;
