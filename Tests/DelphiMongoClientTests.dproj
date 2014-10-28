@@ -82,6 +82,7 @@
     <DCCReference Include="..\MongoStream.pas" />
     <DCCReference Include="..\uAllocators.pas" />
     <DCCReference Include="..\uCnvDictionary.pas" />
+    <DCCReference Include="..\uDelphi5.pas" />
     <DCCReference Include="..\uWinProcHelper.pas" />
     <DCCReference Include="TestGridFS.pas" />
     <DCCReference Include="TestMongoBson.pas" />

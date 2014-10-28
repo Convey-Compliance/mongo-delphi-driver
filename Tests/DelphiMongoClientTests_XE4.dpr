@@ -7,7 +7,7 @@ program DelphiMongoClientTests_XE4;
 uses
   {$IFDEF FASTMM}
   FastMM4,
-  {$ENDIF}
+  {$ENDIF }
   TestMongoDB in 'TestMongoDB.pas',
   TestMongoBson in 'TestMongoBson.pas',
   TestGridFS in 'TestGridFS.pas',
@@ -27,7 +27,9 @@ uses
   uAllocators in '..\uAllocators.pas',
   uCnvDictionary in '..\uCnvDictionary.pas',
   uWinProcHelper in '..\uWinProcHelper.pas',
-  uMain in 'uMain.pas';
+  uMain in 'uMain.pas',
+  uDelphi5 in '..\uDelphi5.pas';
+
 begin
   Main;
 end.
