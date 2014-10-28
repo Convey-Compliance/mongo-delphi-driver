@@ -365,7 +365,7 @@ begin
     Obj.The_07_Set := [eFirst, eSecond];
     Obj.The_08_SubObject.TheInt := 12;
     {$IFDEF DELPHI2007}
-    Obj.The_10_WChar := 'д';
+    Obj.The_10_WChar := #1076;
     {$ELSE}
     Obj.The_10_WChar := 'd';
     {$ENDIF}
