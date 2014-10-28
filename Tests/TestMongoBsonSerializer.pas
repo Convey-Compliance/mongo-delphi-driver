@@ -1,4 +1,5 @@
-﻿unit TestMongoBsonSerializer;
+unit TestMongoBsonSerializer;
+// should be encoded as UTF8 without BOM for Delphi5
 
 {$i DelphiVersion_defines.inc}
 
@@ -30,7 +31,9 @@ type
     procedure TestSerializeObjectDeserializeWithDynamicBuilding_FailTypeNotFound;
     procedure TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
     procedure TestSerializePrimitiveTypes;
+    {$IFDEF DELPHI2007}
     procedure DynamicArrayOfObjects;
+    {$ENDIF}
     procedure StringDictionary;
   end;
   {$M-}
@@ -38,7 +41,7 @@ type
 implementation
 
 uses
-  MongoBson, Classes, SysUtils, Dialogs;
+  MongoBson, Classes, SysUtils, Dialogs, uDelphi5, TestMongoBson;
 
 type
   TEnumeration = (eFirst, eSecond);
@@ -69,7 +72,9 @@ type
     FThe_06_ShortString: ShortString;
     FThe_07_Set: TEnumerationSet;
     FThe_08_SubObject: TIntSubObject;
+    {$IFDEF DELPHI2007}
     FThe_09_DynIntArr: TDynIntArr;
+    {$ENDIF}
     FThe_10_WChar: WideChar;
     FThe_11_AnsiString: AnsiString;
     FThe_12_WideString: WideString;
@@ -84,7 +89,9 @@ type
     FThe_21_MemStream: TMemoryStream;
     FThe_22_BlankMemStream: TMemoryStream;
     FThe_23_EmptySet: TEnumerationSet;
+    {$IFDEF DELPHI2007}
     FThe_24_DynIntArrArr: TDynIntArrArr;
+    {$ENDIF}
   public
     constructor Create;
     destructor Destroy; override;
@@ -99,7 +106,9 @@ type
     property The_06_ShortString: ShortString read FThe_06_ShortString write FThe_06_ShortString;
     property The_07_Set: TEnumerationSet read FThe_07_Set write FThe_07_Set;
     property The_08_SubObject: TIntSubObject read FThe_08_SubObject write FThe_08_SubObject;
+    {$IFDEF DELPHI2007}
     property The_09_DynIntArr: TDynIntArr read FThe_09_DynIntArr write FThe_09_DynIntArr;
+    {$ENDIF}
     property The_10_WChar: WideChar read FThe_10_WChar write FThe_10_WChar;
     property The_11_AnsiString: AnsiString read FThe_11_AnsiString write FThe_11_AnsiString;
     property The_12_WideString: WideString read FThe_12_WideString write FThe_12_WideString;
@@ -114,7 +123,9 @@ type
     property The_21_MemStream: TMemoryStream read FThe_21_MemStream;
     property The_22_BlankMemStream: TMemoryStream read FThe_22_BlankMemStream;
     property The_23_EmptySet: TEnumerationSet read FThe_23_EmptySet write FThe_23_EmptySet;
+    {$IFDEF DELPHI2007}
     property The_24_DynIntArrArr: TDynIntArrArr read FThe_24_DynIntArrArr write FThe_24_DynIntArrArr;
+    {$ENDIF}
     property _a: NativeUInt read F_a write F_a;
   end;
 
@@ -131,12 +142,15 @@ type
 
   TSubObjectArray = array of TIntSubObject;
 
+  {$IFDEF DELPHI2007}
   TDynamicArrayOfObjectsContainer = class
   private
     FArr: TSubObjectArray;
   published
     property Arr: TSubObjectArray read FArr write FArr;
   end;
+  {$ENDIF}
+
   {$M-}
 
 constructor TTestObject.Create;
@@ -207,22 +221,22 @@ begin
     Check(it.Kind = BSON_TYPE_DOCUMENT, 'Type of iterator value should be bsonObject');
     SubIt := it.subiterator;
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
-    CheckEquals('Name1', SubIt.key, 'Iterator should be equals to Value1');
-    CheckEquals('Value1', SubIt.value, 'Iterator should be equals to Value1');
+    CheckEqualsString('Name1', SubIt.key, 'Iterator should be equals to Value1');
+    CheckEqualsString('Value1', SubIt.value, 'Iterator should be equals to Value1');
     SubIt.next;
     SubIt.next;
     SubIt.next;
     SubIt.next;
-    CheckEquals('Name5', SubIt.key, 'Iterator should be equals to Value1');
-    CheckEquals('Value5', SubIt.value, 'Iterator should be equals to Value1');
+    CheckEqualsString('Name5', SubIt.key, 'Iterator should be equals to Value1');
+    CheckEqualsString('Value5', SubIt.value, 'Iterator should be equals to Value1');
 
     TestObject2 := TTestObjectWithObjectAsStringList.Create;
     try
       FDeserializer.Source := b.iterator;
       FDeserializer.Deserialize(TObject(TestObject2), nil);
 
-      CheckEquals('Name1=Value1', TestObject2.ObjectAsStringList[0]);
-      CheckEquals('Name5=Value5', TestObject2.ObjectAsStringList[4]);
+      CheckEqualsString('Name1=Value1', TestObject2.ObjectAsStringList[0]);
+      CheckEqualsString('Name5=Value5', TestObject2.ObjectAsStringList[4]);
     finally
       FreeAndNil(TestObject2);
     end;
@@ -350,11 +364,17 @@ begin
     Obj.The_06_ShortString := 'Hello';
     Obj.The_07_Set := [eFirst, eSecond];
     Obj.The_08_SubObject.TheInt := 12;
+    {$IFDEF DELPHI2007}
     Obj.The_10_WChar := 'д';
+    {$ELSE}
+    Obj.The_10_WChar := 'd';
+    {$ENDIF}
     SetLength(dynIntArr, 2);
     dynIntArr[0] := 1;
     dynIntArr[1] := 2;
+    {$IFDEF DELPHI2007}
     Obj.The_09_DynIntArr := dynIntArr;
+    {$ENDIF}
     Obj.The_11_AnsiString := 'Hello World';
     Obj.The_12_WideString := 'дом дом';
     {$IFDEF DELPHIXE}
@@ -391,7 +411,9 @@ begin
     dynIntArrArr[0, 1] := 2;
     dynIntArrArr[1, 0] := 3;
     dynIntArrArr[1, 1] := 4;
+    {$IFDEF DELPHI2007}
     Obj.The_24_DynIntArrArr := dynIntArrArr;
+    {$ENDIF}
 
     FSerializer.Serialize('', Obj);
 
@@ -409,7 +431,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_02_AnsiChar', it.key);
-    CheckEquals(AnsiChar('B'), ShortString(it.Value), 'Iterator should be equals to "B"');
+    CheckEqualsString(AnsiChar('B'), ShortString(it.Value), 'Iterator should be equals to "B"');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_03_Enumeration', it.key);
@@ -451,6 +473,7 @@ begin
     CheckEquals(12, SubIt.Value, 'Iterator should be equals to 12');
     Check(not SubIt.next, 'Iterator should be at end');
 
+    {$IFDEF DELPHI2007}
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_09_DynIntArr', it.key);
     Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
@@ -460,10 +483,11 @@ begin
     CheckTrue(SubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(2, SubIt.Value, 'Iterator should be equals to 2');
     Check(not SubIt.next, 'Iterator should be at end');
+    {$ENDIF}
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_10_WChar', it.key);
-    CheckEqualsWideString('д', UTF8Decode(it.AsUTF8String), 'Iterator does''t match');
+    CheckEqualsWideString({$IFDEF DELPHI2007}'д'{$ELSE}'d'{$ENDIF}, UTF8Decode(it.AsUTF8String), 'Iterator does''t match');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_11_AnsiString', it.key);
@@ -549,6 +573,7 @@ begin
     Check(it.next, 'Iterator should not be at end');
     Check(it.Kind = BSON_TYPE_ARRAY);
 
+    {$IFDEF DELPHI2007}
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_24_DynIntArrArr', it.key);
     Check(it.Kind = BSON_TYPE_ARRAY, 'Type of iterator value should be bsonARRAY');
@@ -568,6 +593,7 @@ begin
     CheckEquals(3, SubSubIt.Value, 'Iterator should be equals to 16');
     CheckTrue(SubSubIt.Next, 'Array SubIterator should not be at end');
     CheckEquals(4, SubSubIt.Value, 'Iterator should be equals to 22');
+    {$ENDIF}
 
     CheckTrue(it.Next, 'Array SubIterator should not be at end');
     CheckEquals(0, it.Value, 'Iterator should be equals to 0'); // property _a
@@ -579,7 +605,9 @@ begin
     SetLength(dynIntArrArr, 2);
     for I := 0 to Length(dynIntArrArr) - 1 do
       SetLength(dynIntArrArr[I], 2);
+    {$IFDEF DELPHI2007}
     obj2.The_24_DynIntArrArr := dynIntArrArr;
+    {$ENDIF}
     try
       obj2.The_23_EmptySet := [eFirst];
       FDeserializer.Source := b.iterator;
@@ -599,9 +627,11 @@ begin
 
       CheckEquals(12, Obj2.The_08_SubObject.TheInt, 'Obj.The_08_SubObject.TheInt should be 12');
 
+      {$IFDEF DELPHI2007}
       CheckEquals(2, Length(Obj2.The_09_DynIntArr), 'Obj2.The_09_DynIntArr Length should = 2');
       CheckEquals(1, Obj2.The_09_DynIntArr[0], 'Value of The_09_DynIntArr[0] doesn''t match');
       CheckEquals(2, Obj2.The_09_DynIntArr[1], 'Value of The_09_DynIntArr[1] doesn''t match');
+      {$ENDIF}
 
       CheckEqualsString('Hello World', Obj2.The_11_AnsiString, 'Obj2.The_11_AnsiString doesn''t match value');
 
@@ -613,7 +643,7 @@ begin
       CheckEqualsString('ome', Obj.The_13_StringList[1]);
       {$ENDIF}
 
-      CheckEqualsWideString('д', Obj2.The_10_WChar, 'Obj2.The_10_WChar doesn''t match');
+      CheckEqualsWideString({$IFDEF DELPHI2007}'д'{$ELSE}'d'{$ENDIF}, Obj2.The_10_WChar, 'Obj2.The_10_WChar doesn''t match');
 
       CheckEquals(14, Obj2.The_14_VariantAsInteger, 'Obj2.The_14_VariantAsInteger doesn''t match value');
 
@@ -642,10 +672,12 @@ begin
       CheckEquals(length(SomeData), obj2.The_21_MemStream.Size, 'data size doesn''t match');
       Check(CompareMem(SomeData, obj2.The_21_MemStream.Memory, obj2.The_21_MemStream.Size), 'memory doesn''t match');
 
+      {$IFDEF DELPHI2007}
       CheckEquals(1, Obj2.The_24_DynIntArrArr[0, 0], 'Value of The_24_DynIntArrArr[0, 0] doesn''t match');
       CheckEquals(2, Obj2.The_24_DynIntArrArr[0, 1], 'Value of The_24_DynIntArrArr[0, 1] doesn''t match');
       CheckEquals(3, Obj2.The_24_DynIntArrArr[1, 0], 'Value of The_24_DynIntArrArr[1, 0] doesn''t match');
       CheckEquals(4, Obj2.The_24_DynIntArrArr[1, 1], 'Value of The_24_DynIntArrArr[1, 1] doesn''t match');
+      {$ENDIF}
     finally
       Obj2.Free;
     end;
@@ -654,6 +686,7 @@ begin
   end;
 end;
 
+{$IFDEF DELPHI2007}
 procedure TestTMongoBsonSerializer.DynamicArrayOfObjects;
 var
   obj, deserializedObj: TDynamicArrayOfObjectsContainer;
@@ -714,6 +747,7 @@ begin
   for I := 0 to Length(obj.Arr) - 1 do
     CheckEquals(obj.Arr[I].TheInt, deserializedObj.Arr[I].TheInt);
 end;
+{$ENDIF}
 
 constructor TTestObjectWithObjectAsStringList.Create;
 begin
@@ -739,8 +773,6 @@ const
   TEST_STR = 'test str';
   MIN_INT64 = Low(Int64);
   BOOL = true;
-  DOUBLE_VAL = 666.666;
-  DELTA = 0.000001;
 var
   dic, newDic: TCnvStringDictionary;
   b: IBsonBuffer;
@@ -751,8 +783,10 @@ var
   newStr: string;
   newBool: Boolean;
   newDouble: Double;
+  DOUBLE_VAL: Double;
   newDate: TDateTime;
 begin
+  DOUBLE_VAL := 666.666;
   dic := TCnvStringDictionary.Create(true);
 
   dic.AddOrSetValue('item1', TIntSubObject.Create(SUBOBJ_VAL));
@@ -779,15 +813,15 @@ begin
   Check(newDic.TryGetValue('item2', newInt));
   CheckEquals(MAXINT, newInt);
   Check(newDic.TryGetValue('item3', newStr));
-  CheckEquals(TEST_STR, newStr);
+  CheckEqualsString(TEST_STR, newStr);
   Check(newDic.TryGetValue('item4', newInt64));
   CheckEquals(MIN_INT64, newInt64);
   Check(newDic.TryGetValue('item5', newBool));
   CheckEquals(BOOL, newBool);
   Check(newDic.TryGetValue('item6', newDouble));
-  CheckEquals(DOUBLE_VAL, newDouble, DELTA);
+  CheckEquals(DOUBLE_VAL, newDouble);
   Check(newDic.TryGetValueDate('item7', newDate));
-  CheckEquals(date, newDate, DELTA);
+  CheckEquals(date, newDate, DATE_TIME_EPSILON);
 end;
 
 { TIntSubObject }

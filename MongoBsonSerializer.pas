@@ -15,6 +15,11 @@ const
 
 type
   TObjectBuilderFunction = function(const AClassName : string; AContext : Pointer) : TObject;
+
+  EDynArrayUnsupported = class(Exception)
+    constructor Create;
+  end;
+
   EBsonSerializationException = class(Exception);
 
   EBsonSerializer = class(Exception);
@@ -47,7 +52,9 @@ type
     procedure SerializePropInfo(APropInfo: PPropInfo; ASource: TObject);
     procedure SerializeSet(APropInfo: PPropInfo; ASource: TObject);
     procedure SerializeVariant(APropInfo: PPropInfo; const AName: String; const AVariant: Variant; ASource: TObject);
+    {$IFDEF DELPHI2007}
     procedure SerializeDynamicArrayOfObjects(APropInfo: PPropInfo; ASource: TObject);
+    {$ENDIF}
   public
     procedure Serialize(const AName: String; ASource: TObject); override;
   end;
@@ -61,7 +68,9 @@ type
                                 ASource: IBsonIterator; AContext: Pointer); overload;
     procedure DeserializeSet(p: PPropInfo; var ATarget: TObject);
     procedure DeserializeVariantArray(p: PPropInfo; var v: Variant);
+    {$IFDEF DELPHI2007}
     procedure DeserializeDynamicArrayOfObjects(p: PPropInfo; var ATarget: TObject; AContext : Pointer);
+    {$ENDIF}
     function GetArrayDimension(it: IBsonIterator) : Integer;
   public
     procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
@@ -91,7 +100,8 @@ implementation
 
 uses
   SyncObjs, uLinkedListDefaultImplementor, uScope
-  {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF};
+  {$IFNDEF VER130}, Variants{$ELSE}{$IFDEF Enterprise}, Variants{$ENDIF}{$ENDIF},
+  uDelphi5;
 
 const
   SBoolean = 'Boolean';
@@ -187,6 +197,11 @@ var
 threadvar
   // To reduce contention maintaining cache of PropInfosDictionary we will keep one cache per thread using a threadvar (TLS)
   PropInfosDictionaryDictionary : TCnvIntegerDictionary;
+
+constructor EDynArrayUnsupported.Create;
+begin
+  inherited Create('tkDynArray Unsupported in this Delphi version');
+end;
 
 function Strip_T_FormClassName(const AClassName : string): string;
 begin
@@ -314,8 +329,9 @@ function GetPropInfosDictionary(AObj: TObject): TCnvStringDictionary;
 var
   PropList : PPropList;
   TypeData : PTypeData;
-  i : integer;
+  i, count : integer;
   o: TObject;
+  TypeInfo: PtypeInfo;
 begin
   if AObj = nil then
     raise EBsonSerializationException.Create(SCanTBuildPropInfoListOfANilObjec);
@@ -327,19 +343,20 @@ begin
   end;
 
   TypeData := GetAndCheckTypeData(AObj.ClassType);
-  GetPropList(AObj, PropList);
-  try
-    Result := TCnvStringDictionary.Create;
+  TypeInfo := PTypeInfo(AObj.ClassInfo);
+  count := GetTypeData(PTypeInfo(AObj.ClassInfo))^.PropCount;
+  Result := TCnvStringDictionary.Create;
+  if count > 0 then
+  begin
+    GetMem(PropList, count * SizeOf(Pointer));
+    GetPropInfos(TypeInfo, PropList);
     try
       for i := 0 to TypeData.PropCount - 1 do
         Result.AddOrSetValue(PropList[i].Name, TObject(PropList[i]));
       GetPropInfosDictionaryDictionary.AddOrSetValue(Integer(AObj.ClassType), Result);
-    except
-      Result.Free;
-      raise;
+    finally
+      FreeMem(PropList);
     end;
-  finally
-    FreeMem(PropList);
   end;
 end;
 
@@ -352,7 +369,7 @@ end;
 
 procedure TBaseBsonSerializer.Serialize_type(ASource: TObject);
 begin
-  Target.append(SERIALIZED_ATTRIBUTE_ACTUALTYPE, Strip_T_FormClassName(ASource.ClassName));
+  Target.appendStr(SERIALIZED_ATTRIBUTE_ACTUALTYPE, Strip_T_FormClassName(ASource.ClassName));
 end;
 
 { TPrimitivesBsonSerializer }
@@ -362,14 +379,23 @@ var
   TypeData : PTypeData;
   i : integer;
   list: PPropList;
+  TypeInfo: PTypeInfo;
+  count: Integer;
 begin
   TypeData := GetAndCheckTypeData(ASource.ClassType);
-  GetPropList(ASource, list);
-  try
-    for i := 0 to TypeData.PropCount - 1 do
-      SerializePropInfo(list[i], ASource);
-  finally
-    FreeMem(list);
+
+  TypeInfo := PTypeInfo(ASource.ClassInfo);
+  count := GetTypeData(PTypeInfo(ASource.ClassInfo))^.PropCount;
+  if count > 0 then
+  begin
+    GetMem(list, count * SizeOf(Pointer));
+    GetPropInfos(TypeInfo, list);
+    try
+      for i := 0 to TypeData.PropCount - 1 do
+        SerializePropInfo(list[i], ASource);
+    finally
+      FreeMem(list);
+    end;
   end;
 end;
 
@@ -377,16 +403,18 @@ procedure TPrimitivesBsonSerializer.SerializePropInfo(APropInfo: PPropInfo;
     ASource: TObject);
 var
   ADate : TDateTime;
+  {$IFDEF DELPHI2007}
   dynArrayElementInfo: PPTypeInfo;
+  {$ENDIF}
 begin
   case APropInfo.PropType^.Kind of
     tkInteger : Target.append(APropInfo.Name, LongInt(GetOrdProp(ASource, APropInfo)));
     tkInt64 : Target.append(APropInfo.Name, GetInt64Prop(ASource, APropInfo));
-    tkChar : Target.append(APropInfo.Name, UTF8String(AnsiChar(GetOrdProp(ASource, APropInfo))));
+    tkChar : Target.appendStr(APropInfo.Name, UTF8String(AnsiChar(GetOrdProp(ASource, APropInfo))));
     {$IFDEF DELPHIXE}
     tkWChar : Target.append(APropInfo.Name, UTF8String(Char(GetOrdProp(ASource, APropInfo))));
     {$ELSE}
-    tkWChar : Target.append(APropInfo.Name, UTF8Encode(WideChar(GetOrdProp(ASource, APropInfo))));
+    tkWChar : Target.appendStr(APropInfo.Name, UTF8Encode(WideChar(GetOrdProp(ASource, APropInfo))));
     {$ENDIF}
     tkEnumeration :
       {$IFDEF DELPHIXE}
@@ -395,7 +423,7 @@ begin
       if APropInfo^.PropType^.Name = SBoolean then
       {$ENDIF}
         Target.append(APropInfo.Name, GetEnumProp(ASource, APropInfo) = STrue)
-      else Target.append(APropInfo.Name, UTF8String(GetEnumProp(ASource, APropInfo)));
+      else Target.appendStr(APropInfo.Name, UTF8String(GetEnumProp(ASource, APropInfo)));
     tkFloat :
       {$IFDEF DELPHIXE}
       if GetTypeData(TypeInfo(TDateTime)) = APropInfo^.PropType^.TypeData then
@@ -408,11 +436,11 @@ begin
       end
       else Target.append(APropInfo.Name, GetFloatProp(ASource, APropInfo));
     {$IFDEF DELPHIXE} tkUString, {$ENDIF}
-    tkLString, tkString : Target.append(APropInfo.Name, GetStrProp(ASource, APropInfo));
+    tkLString, tkString : Target.appendStr(APropInfo.Name, GetStrProp(ASource, APropInfo));
     {$IFDEF DELPHIXE}
     tkWString : Target.append(APropInfo.Name, UTF8String(GetWideStrProp(ASource, APropInfo)));
     {$ELSE}
-    tkWString : Target.append(APropInfo.Name, UTF8Encode(GetWideStrProp(ASource, APropInfo)));
+    tkWString : Target.appendStr(APropInfo.Name, UTF8Encode(GetWideStrProp(ASource, APropInfo)));
     {$ENDIF}
     tkSet :
       begin
@@ -424,11 +452,15 @@ begin
     tkVariant : SerializeVariant(APropInfo, APropInfo.Name, Null, ASource);
     tkDynArray :
     begin
+      {$IFNDEF DELPHI2007}
+      raise EDynArrayUnsupported.Create;
+      {$ELSE}
       dynArrayElementInfo := GetTypeData(APropInfo.PropType^)^.elType2;
       if (dynArrayElementInfo <> nil) and (dynArrayElementInfo^.Kind = tkClass) then
         SerializeDynamicArrayOfObjects(APropInfo, ASource) // its array of objects
       else // its array of primitives
         SerializeVariant(nil, APropInfo.Name, GetPropValue(ASource, APropInfo), ASource);
+      {$ENDIF}
     end;
 
   end;   
@@ -445,7 +477,7 @@ begin
   TypeInfo := GetTypeData(APropInfo.PropType^)^.CompType^;
   for i := 0 to SizeOf(Integer) * 8 - 1 do
     if i in S then
-      Target.append('', GetEnumName(TypeInfo, i));
+      Target.appendStr('', GetEnumName(TypeInfo, i));
 end;
 
 procedure TPrimitivesBsonSerializer.SerializeObject(APropInfo: PPropInfo;
@@ -476,14 +508,16 @@ begin
   else v := AVariant;
   case VarType(v) of
     varNull: Target.appendNull(AName);
-    varSmallInt, varInteger, varShortInt, varByte, varWord, varLongWord: Target.append(AName, integer(v));
+    varSmallInt, varInteger, {$IFDEF DELPHI2007}varShortInt, varWord, varLongWord, {$ENDIF}varByte: Target.append(AName, integer(v));
     varSingle, varDouble, varCurrency: Target.append(AName, Extended(v));
     varDate: Target.append(APropInfo.Name, TDateTime(v));
     {$IFDEF DELPHIXE} varUString, {$ENDIF}
-    varOleStr, varString: Target.append(AName, UTF8String(String(v)));
+    varOleStr, varString: Target.appendStr(AName, UTF8String(String(v)));
     varBoolean: Target.append(AName, Boolean(v));
+    {$IFDEF DELPHI2007}
     {$IFDEF DELPHIXE} varUInt64, {$ENDIF}
     varInt64: Target.append(AName, TVarData(v).VInt64);
+    {$ENDIF}
     else if VarType(v) and varArray = varArray then
       begin
         dim := VarArrayDimCount(v);
@@ -495,7 +529,7 @@ begin
           for j := VarArrayLowBound(v, i) to VarArrayHighBound(v, i) do
           begin
             if dim > 1 then
-              tmp := VarArrayGet(v, [i - 1, j])
+              tmp := v[i - 1, j]
             else
               tmp := v[j];
             SerializeVariant(nil, '', tmp, ASource);
@@ -508,6 +542,7 @@ begin
   end;
 end;
 
+{$IFDEF DELPHI2007}
 procedure TPrimitivesBsonSerializer.SerializeDynamicArrayOfObjects(
   APropInfo: PPropInfo; ASource: TObject);
 var
@@ -527,6 +562,7 @@ begin
   end;
   Target.finishObject;
 end;
+{$ENDIF}
 
 { TStringsBsonSerializer }
 
@@ -539,7 +575,7 @@ begin
   Target.startArray(AName);
   AList := ASource as TStrings;
   for i := 0 to AList.Count - 1 do
-    Target.append('', AList[i]);
+    Target.appendStr('', AList[i]);
   Target.finishObject;
 end;
 
@@ -592,9 +628,11 @@ end;
 procedure TPrimitivesBsonDeserializer.DeserializeIterator(var ATarget: TObject;
     AContext : Pointer);
 var
-  dynArrayElementInfo: PPTypeInfo;
   p : PPropInfo;
+  {$IFDEF DELPHI2007}
+  dynArrayElementInfo: PPTypeInfo;
   po : Pointer;
+  {$ENDIF}
   v : Variant;
   PropInfosDictionary : TCnvStringDictionary;
   (* We need this safe function because if variant Av param represents a zero size array
@@ -656,6 +694,9 @@ begin
             end;
             tkDynArray :
             begin
+              {$IFNDEF DELPHI2007}
+              raise EDynArrayUnsupported.Create;
+              {$ELSE}
               dynArrayElementInfo := GetTypeData(p.PropType^)^.elType2;
               //ClassType
               if (dynArrayElementInfo <> nil) and (dynArrayElementInfo^.Kind = tkClass) then
@@ -678,6 +719,7 @@ begin
                   SetDynArrayProp(ATarget, p, po);
                 end;
               end;
+              {$ENDIF}
             end;
             tkClass : DeserializeObject(p, ATarget, AContext);
           end;
@@ -794,6 +836,7 @@ begin
     VarArrayRedim(v, j - 1);
 end;
 
+{$IFDEF DELPHI2007}
 procedure TPrimitivesBsonDeserializer.DeserializeDynamicArrayOfObjects(
   p: PPropInfo; var ATarget: TObject; AContext : Pointer);
 var
@@ -821,6 +864,7 @@ begin
   SetLength(dynArrOfObjs, I);
   SetDynArrayProp(ATarget, p, dynArrOfObjs);
 end;
+{$ENDIF}
 
 function TPrimitivesBsonDeserializer.GetArrayDimension(it: IBsonIterator) : Integer;
 begin
@@ -896,7 +940,7 @@ begin
   Target.startObject(AName);
   AList := ASource as TStringList;
   for i := 0 to AList.Count - 1 do
-    Target.append(AList.Names[i], AList.ValueFromIndex[i]);
+    Target.appendStr(AList.Names[i], {$IFDEF DELPHI2007}AList.ValueFromIndex[i]{$ELSE}AList.Values[AList.Names[I]]{$ENDIF});
   Target.finishObject;
 end;
 

@@ -1020,8 +1020,11 @@ begin
 end;
 
 function TMongo.findOne(const ns: UTF8String; query: IBson): IBson;
+var
+  nilBson: IBson; // needed for Delphi5
 begin
-  Result := findOne(ns, query, nil);
+  nilBson := nil;
+  Result := findOne(ns, query, nilBson);
 end;
 
 function TMongo.find(const ns: UTF8String; Cursor: IMongoCursor): Boolean;
@@ -1100,9 +1103,12 @@ begin
 end;
 
 function TMongo.count(const ns: UTF8String): Double;
+var
+  nilBson: IBson; // needed for Delphi5
 begin
+  nilBson := nil;
   autoCmdResetLastError(ns, true);
-  Result := count(ns, nil);
+  Result := count(ns, nilBson);
   autoCheckCmdLastError(ns, true);
 end;
 

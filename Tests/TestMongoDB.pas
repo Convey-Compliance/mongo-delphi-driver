@@ -194,7 +194,8 @@ implementation
 
 uses
   AppExec, uWinProcHelper, uFileManagement{$IFNDEF VER130}, Variants{$ENDIF}, Windows, FileCtrl
-  {$IFDEF TAXPORT}, uScope, Forms, CnvStream, CnvFileUtils, JclDateTime {$ENDIF}, Dialogs;
+  {$IFDEF TAXPORT}, uScope, Forms, CnvStream, CnvFileUtils, JclDateTime {$ENDIF}, Dialogs,
+  DateUtils, uDelphi5;
 
 procedure StartMongoDB(const AParams: UTF8String);
 {$IFDEF TAXPORT}
@@ -1003,7 +1004,7 @@ begin
   Check(FMongo.Insert('test_db.test_col', buf.finish), 'Call to FMongo.Insert should return true');
   id2 := NewBsonOID(id.asString);
   Res := FMongo.findAndModify('test_db.test_col', ['_id', id2], [],
-                              ['strattr', 'world', 'ts', NewBsonTimestamp(Now, 0), 'bin', NewBsonBinary(PAnsiString(Data), length(Data))], [], [tfamoNew]);
+                              ['strattr', 'world', 'ts', NewBsonTimestamp(DateTimeToUnix(Now), 0), 'bin', NewBsonBinary(PAnsiString(Data), length(Data))], [], [tfamoNew]);
   Check(Res <> nil, 'Result from call to findAndModify should be <> nil');
   ResultBson := Res.find('value').subiterator;
   Check(ResultBson <> nil, 'subiterator should be <> nil');

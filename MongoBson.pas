@@ -28,7 +28,7 @@ unit MongoBson;
 interface
 
 uses
-  uPrimitiveAllocator, SysUtils;
+  uPrimitiveAllocator, SysUtils, Windows, uDelphi5;
 
 const
   E_WasNotExpectingCloseOfObjectOper    = 90100;
@@ -67,9 +67,6 @@ type
   TBooleanArray = array of Boolean;
   TStringArray  = array of UTF8String;
   TVarRecArray = array of TVarRec;
-  {$IFNDEF DELPHI2007}
-  PByte = ^Byte;
-  {$ENDIF}
 
   TBsonType = (BSON_TYPE_EOD,
    BSON_TYPE_DOUBLE,
@@ -163,11 +160,11 @@ type
     TBsonIterator.getTimestamp() }
   IBsonTimestamp = interface
     ['{06802587-D513-4797-9613-08F66E2692EA}']
-    function getTime: TDateTime;
+    function getTime: LongWord;
     function getIncrement: LongWord;
-    procedure setTime(ATime: TDateTime);
+    procedure setTime(ATime: LongWord);
     procedure setIncrement(AIncrement: LongWord);
-    property Time : TDateTime read getTime write setTime;
+    property Time : LongWord read getTime write setTime;
     property Increment : LongWord read getIncrement write setIncrement;
   end;
 
@@ -450,7 +447,7 @@ function NewBsonRegex(const apattern, aoptions: UTF8String): IBsonRegex; overloa
 function NewBsonRegex(i : IBsonIterator): IBsonRegex; overload;
 
 { Create a TBsonTimestamp from a TDateTime and an increment }
-function NewBsonTimestamp(atime: TDateTime; aincrement: Integer): IBsonTimestamp; overload;
+function NewBsonTimestamp(atime, aincrement: LongWord): IBsonTimestamp; overload;
 { Create a TBSonTimestamp from a TBsonIterator pointing to a TIMESTAMP
   field. }
 function NewBsonTimestamp(i : IBsonIterator): IBsonTimestamp; overload;
@@ -477,9 +474,8 @@ function Null_Element : TObject;
 implementation
 
 uses
-  Windows,
-  {$IFNDEF VER130}Variants{$ENDIF},
-  LibBsonApi, uStack, Contnrs, Dialogs;
+  {$IFNDEF VER130}Variants,{$ENDIF}
+  LibBsonApi, uStack, Contnrs, Dialogs, DateUtils;
 
 // START resource string wizard section
 resourcestring
@@ -515,9 +511,6 @@ resourcestring
   SNilBSON = 'nil BSON';
   S_FAILED_TO_INIT_BSON_FROM_DATA = 'Failed to init bson from data buffer, seems it''s invalid';
 // END resource string wizard section
-
-const
-  DATE_ADJUSTER = 25569;
 
 type
   {$IFNDEF DELPHI2007}
@@ -616,15 +609,14 @@ type
 
   TBsonTimestamp = class(TInterfacedObject, IBsonTimestamp)
   private
-    Time: TDateTime;
-    increment: LongWord;
+    FTimestamp, FIncrement: LongWord;
   public
-    constructor Create(atime: TDateTime; aincrement: LongWord); overload;
+    constructor Create(atimestamp, aincrement: LongWord); overload;
     constructor Create(i: IBsonIterator); overload;
     function getIncrement: LongWord;
-    function getTime: TDateTime;
+    function getTime: LongWord;
     procedure setIncrement(AIncrement: LongWord);
-    procedure setTime(ATime: TDateTime);
+    procedure setTime(ATime: LongWord);
   end;
 
   TBsonBuffer = class(TInterfacedObject, IBsonBuffer)
@@ -815,11 +807,7 @@ end;
 
 function TBsonIterator.getAsInt64: Int64;
 begin
-  {$IFNDEF DELPHI2007}
-  raise Exception.Create(SCanTAccessAnInt64UsingAVariantOn);
-  {$ELSE}
   Result := bson_iter_int64(@FNativeIter);
-  {$ENDIF}
 end;
 
 function TBsonIterator.GetAsUTF8String: UTF8String;
@@ -839,7 +827,7 @@ end;
 
 function TBsonIterator.GetAsDateTime: TDateTime;
 begin
-  Result := (bson_iter_date_time(@FNativeIter) / (1000 * 60 * 60 * 24)) + DATE_ADJUSTER;
+  Result := UnixToDateTime(bson_iter_date_time(@FNativeIter))
 end;
 
 function TBsonIterator.GetAsBoolean: Boolean;
@@ -893,7 +881,11 @@ begin
     BSON_TYPE_DATE_TIME:
       Result := GetAsDateTime;
     BSON_TYPE_INT64:
+{$IFNDEF DELPHI2007}
+      raise Exception.Create(SCanTAccessAnInt64UsingAVariantOn);
+{$ELSE}
       Result := getAsInt64;
+{$ENDIF}
     else
       raise EBson.Create(SNotSupportedByTBsonIteratorValue, IntToStr(Ord(kind)), E_NotSupportedByTBsonIteratorValue);
   end;
@@ -1091,7 +1083,7 @@ end;
 function TBsonBuffer.appendDate(const Name: UTF8String; Value: TDateTime):
     Boolean;
 begin
-  Result := bson_append_date_time(GetCurrNativeBson, PAnsiChar(Name), -1, Trunc((Value - DATE_ADJUSTER) * 1000 * 60 * 60 * 24));
+  Result := bson_append_date_time(GetCurrNativeBson, PAnsiChar(Name), -1, DateTimeToUnix(Value));
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: Boolean): Boolean;
@@ -1123,7 +1115,8 @@ end;
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonTimestamp):
     Boolean;
 begin
-  Result := bson_append_timestamp(GetCurrNativeBson, PAnsiChar(Name), -1, Trunc((Value.getTime - DATE_ADJUSTER) * 60 * 60 * 24), Value.getIncrement);
+  Result := bson_append_timestamp(GetCurrNativeBson, PAnsiChar(Name), -1,
+    Value.Time, Value.Increment);
 end;
 
 function TBsonBuffer.append(const Name: UTF8String; Value: IBsonBinary):
@@ -1692,40 +1685,37 @@ end;
 
 { TBsonTimestamp }
 
-constructor TBsonTimestamp.Create(atime: TDateTime; aincrement: LongWord);
+constructor TBsonTimestamp.Create(atimestamp, aincrement: LongWord);
 begin
   inherited Create;
-  Time := atime;
-  increment := aincrement;
+  FTimestamp := atimestamp;
+  FIncrement := aincrement;
 end;
 
 constructor TBsonTimestamp.Create(i: IBsonIterator);
-var
-  t: LongWord;
 begin
   inherited Create;
-  bson_iter_timestamp(i.getHandle, @t, @increment);
-  Time := t / (60 * 60 * 24) + DATE_ADJUSTER;
+  bson_iter_timestamp(i.getHandle, @FTimestamp, @FIncrement);
 end;
 
 function TBsonTimestamp.getIncrement: LongWord;
 begin
-  Result := Increment;
+  Result := FIncrement;
 end;
 
-function TBsonTimestamp.getTime: TDateTime;
+function TBsonTimestamp.getTime: LongWord;
 begin
-  Result := Time;
+  Result := FTimestamp;
 end;
 
 procedure TBsonTimestamp.setIncrement(AIncrement: LongWord);
 begin
-  Increment := AIncrement;
+  FIncrement := AIncrement;
 end;
 
-procedure TBsonTimestamp.setTime(ATime: TDateTime);
+procedure TBsonTimestamp.setTime(ATime: LongWord);
 begin
-  Time := ATime;
+  FTimestamp := ATime;
 end;
 
 { TBsonBinary }
@@ -1873,7 +1863,7 @@ begin
   Result := TBsonTimestamp.Create(i);
 end;
 
-function NewBsonTimestamp(atime: TDateTime; aincrement: Integer):
+function NewBsonTimestamp(atime, aincrement: LongWord):
     IBsonTimestamp; overload;
 begin
   Result := TBsonTimestamp.Create(atime, aincrement);

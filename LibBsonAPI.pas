@@ -5,7 +5,7 @@ interface
 {$I MongoC_defines.inc}
 
 uses
-  SysUtils, MongoBson;
+  SysUtils, MongoBson, Windows, uDelphi5;
 
 const
   (* PLEASE!!! maintain this constant in sync with the dll driver version this code operates with *)
@@ -33,7 +33,7 @@ type
     padding: array[0..119] of Byte;
   end;
 
-   PPbyte = ^PByte;
+  PPbyte = ^PByte;
 
 { LibBson DLL imports }
 procedure bson_free(mem : Pointer); cdecl; external LibBson_DLL;

@@ -24,7 +24,9 @@ uses
   uAllocators in '..\uAllocators.pas',
   uCnvDictionary in '..\uCnvDictionary.pas',
   uWinProcHelper in '..\uWinProcHelper.pas',
-  uMain in 'uMain.pas';
+  uMain in 'uMain.pas',
+  uDelphi5 in '..\uDelphi5.pas';
+
 begin
   Main;
 end.
