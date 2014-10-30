@@ -177,7 +177,7 @@ type
 
   TCnvStringDictionarySerializer = class(TBaseBsonSerializer)
   private
-    procedure SerializeKeyValuePair(const AKey: string; const AValue: TObject);
+    procedure SerializeKeyValuePair(const AKey: string; const AValue: TObject; AUserData: Pointer);
   public
     procedure Serialize(const AName: String; ASource: TObject); override;
   end;
@@ -980,7 +980,7 @@ end;
 { TCnvStringDictionarySerializer }
 
 procedure TCnvStringDictionarySerializer.SerializeKeyValuePair(const AKey: string;
-  const AValue: TObject);
+  const AValue: TObject; AUserData: Pointer);
 var
   serializer: TBaseBsonSerializer;
 begin
