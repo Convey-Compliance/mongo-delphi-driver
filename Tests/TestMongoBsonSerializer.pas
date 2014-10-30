@@ -41,7 +41,7 @@ type
 implementation
 
 uses
-  MongoBson, Classes, SysUtils, Dialogs, uDelphi5, TestMongoBson;
+  MongoBson, Classes, SysUtils, Dialogs, uDelphi5, MongoTestConsts;
 
 type
   TEnumeration = (eFirst, eSecond);
