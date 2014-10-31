@@ -111,6 +111,7 @@ type
 
   TBsonOIDBytes = array[0..11] of Byte;
   PBsonOIDBytes = ^TBsonOIDBytes;
+  PPBsonOIDBytes = ^PBsonOIDBytes;
   TBsonOIDString = array[0..24] of AnsiChar;
   { A TBsonOID is used to store BSON Object IDs.
     See http://www.mongodb.org/display/DOCS/Object+IDs }
@@ -122,13 +123,6 @@ type
     function asString: UTF8String;
     { the oid data }
     property Value : PBsonOIDBytes read getValue write setValue;
-  end;
-
-  IOidGenerator = interface
-    ['{2422BA01-8210-4547-BE66-1EB42CA71F4A}']
-    function getHandle : Pointer; // This could return nil if no DLL provided generator
-    procedure gen(oid : IBsonOID);
-    property Handle : Pointer read getHandle;
   end;
 
   { A TBsonCodeWScope is used to hold javascript code and its associated scope.
@@ -475,7 +469,7 @@ implementation
 
 uses
   {$IFNDEF VER130}Variants,{$ENDIF}
-  LibBsonApi, uStack, Contnrs, Dialogs, DateUtils;
+  LibBsonApi, uStack, Contnrs, DateUtils;
 
 // START resource string wizard section
 resourcestring
@@ -712,7 +706,6 @@ var
   AStart_Array : TObject;
   AEnd_Array : TObject;
   ANull_Element : TObject;
-  ADefaultOidGenerator : IOidGenerator;
 
 {$IFDEF DELPHIXE2}
 function Pos(const SubStr, Str: UTF8String): Integer;
@@ -2072,7 +2065,6 @@ initialization
   AEnd_Array := TObject.Create;
   ANull_Element := TObject.Create;
 finalization
-  ADefaultOidGenerator := nil;
   absonEmpty := nil;
   ANull_Element.Free;
   AStart_Object.Free;

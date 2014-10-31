@@ -9,10 +9,6 @@ uses
 
 {$i ..\DelphiVersion_defines.inc}
 
-const
-  DATE_TIME_EPSILON = 1000; // we ignore value less then 1 sec cause unix timestamp
-  // is second-aligned value and mongodb just cut miliseconds
-
 type
 
   TestIBsonOID = class(TTestCase)
@@ -200,7 +196,7 @@ uses
   Classes,
   {$IFNDEF VER130}Variants, {$ENDIF}
   uDelphi5,
-  uPrimitiveAllocator, Math, DateUtils;
+  uPrimitiveAllocator, Math, DateUtils, MongoTestConsts;
 
 procedure TestIBsonOID.SetUp;
 begin

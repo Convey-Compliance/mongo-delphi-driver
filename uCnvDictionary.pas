@@ -19,8 +19,8 @@ type
        TIntegerWrapper(AValue).Value
      etc. 
   *)
-  TCnvStringDictionaryEnumerateCallback = procedure(const AKey: string; const AValue: TObject) of object;
-  TCnvIntegerDictionaryEnumerateCallback = procedure(const AKey: Integer; const AValue: TObject) of object;
+  TCnvStringDictionaryEnumerateCallback = procedure(const AKey: string; const AValue: TObject; AUserData: Pointer) of object;
+  TCnvIntegerDictionaryEnumerateCallback = procedure(const AKey: Integer; const AValue: TObject; AUserData: Pointer) of object;
 
   (* Associative array with string key implementation *)
   TCnvStringDictionary = class
@@ -50,7 +50,7 @@ type
     function TryGetValueDate(const AKey: string; out AValue: TDateTime): Boolean;
     function ContainsKey(const AKey: string): Boolean;
     procedure Clear;
-    procedure Foreach(ACallback: TCnvStringDictionaryEnumerateCallback);
+    procedure Foreach(ACallback: TCnvStringDictionaryEnumerateCallback; AUserData: Pointer = nil);
   end;
 
   (* Associative array with integer key implementation *)
@@ -82,7 +82,7 @@ type
     function TryGetValueDate(const AKey: Integer; out AValue: TDateTime): Boolean;
     function ContainsKey(const AKey: Integer): Boolean;
     procedure Clear;
-    procedure Foreach(ACallback: TCnvIntegerDictionaryEnumerateCallback);
+    procedure Foreach(ACallback: TCnvIntegerDictionaryEnumerateCallback; AUserData: Pointer = nil);
   end;
 
   (* wrapper classes to support primitives(assigned to TObject) *)
@@ -169,11 +169,12 @@ end;
 procedure TCnvStringDictionary.EnumerateCallback(UserData: Pointer;
   Value: PChar; Data: TObject; var Done: Boolean);
 begin
-  FUserEnumerateCallback(Value, Data);
+  FUserEnumerateCallback(Value, Data, UserData);
 end;
 {$ENDIF}
 
-procedure TCnvStringDictionary.Foreach(ACallback: TCnvStringDictionaryEnumerateCallback);
+procedure TCnvStringDictionary.Foreach(ACallback: TCnvStringDictionaryEnumerateCallback;
+  AUserData: Pointer);
 {$IFDEF HAS_GENERICS}
 var
   key: string;
@@ -182,9 +183,9 @@ begin
   FUserEnumerateCallback := ACallback;
 {$IFDEF HAS_GENERICS}
   for key in FDic.Keys do
-    FUserEnumerateCallback(key, FDic.Items[key]);
+    FUserEnumerateCallback(key, FDic.Items[key], AUserData);
 {$ELSE}
-  FDic.Traverse(nil, EnumerateCallback);
+  FDic.Traverse(AUserData, EnumerateCallback);
 {$ENDIF}
 end;
 
@@ -423,12 +424,12 @@ end;
 procedure TCnvIntegerDictionary.EnumerateCallback(UserData: Pointer;
   Value: Integer; Data: TObject; var Done: Boolean);
 begin
-  FUserEnumerateCallback(Value, Data);
+  FUserEnumerateCallback(Value, Data, UserData);
 end;
 {$ENDIF}
 
 procedure TCnvIntegerDictionary.Foreach(
-  ACallback: TCnvIntegerDictionaryEnumerateCallback);
+  ACallback: TCnvIntegerDictionaryEnumerateCallback; AUserData: Pointer);
 {$IFDEF HAS_GENERICS}
 var
   key: Integer;
@@ -437,9 +438,9 @@ begin
   FUserEnumerateCallback := ACallback;
 {$IFDEF HAS_GENERICS}
   for key in FDic.Keys do
-    FUserEnumerateCallback(key, FDic.Items[key]);
+    FUserEnumerateCallback(key, FDic.Items[key], AUserData);
 {$ELSE}
-  FDic.Traverse(nil, EnumerateCallback);
+  FDic.Traverse(AUserData, EnumerateCallback);
 {$ENDIF}
 end;
 
