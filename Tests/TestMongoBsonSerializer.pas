@@ -487,7 +487,7 @@ begin
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_10_WChar', it.key);
-    CheckEqualsWideString({$IFDEF DELPHI2007}'д'{$ELSE}'d'{$ENDIF}, UTF8Decode(it.AsUTF8String), 'Iterator does''t match');
+    CheckEqualsWideString({$IFDEF DELPHI2007}#1076{$ELSE}'d'{$ENDIF}, UTF8Decode(it.AsUTF8String), 'Iterator does''t match');
 
     CheckTrue(it.Next, 'Iterator should not be at end');
     CheckEqualsString('The_11_AnsiString', it.key);
@@ -643,7 +643,7 @@ begin
       CheckEqualsString('ome', Obj.The_13_StringList[1]);
       {$ENDIF}
 
-      CheckEqualsWideString({$IFDEF DELPHI2007}'д'{$ELSE}'d'{$ENDIF}, Obj2.The_10_WChar, 'Obj2.The_10_WChar doesn''t match');
+      CheckEqualsWideString({$IFDEF DELPHI2007}#1076{$ELSE}'d'{$ENDIF}, Obj2.The_10_WChar, 'Obj2.The_10_WChar doesn''t match');
 
       CheckEquals(14, Obj2.The_14_VariantAsInteger, 'Obj2.The_14_VariantAsInteger doesn''t match value');
 
