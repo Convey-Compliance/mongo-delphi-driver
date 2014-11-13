@@ -190,6 +190,11 @@ type
   end;
 
   TCnvStringDictionaryDeserializer = class(TBaseBsonDeserializer)
+  private
+    class procedure DeserializeValue(var ADic: TCnvStringDictionary; AContext: Pointer;
+      it: IBsonIterator; const AKey: string);
+    procedure SimpleDeserialize(var ADic: TCnvStringDictionary; AContext : Pointer);
+    procedure ComplexDeserialize(var ADic: TCnvStringDictionary; AContext : Pointer);
   public
     procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
   end;
@@ -1031,35 +1036,89 @@ end;
 procedure TCnvStringDictionaryDeserializer.Deserialize(var ATarget: TObject;
   AContext: Pointer);
 var
+  dict: TCnvStringDictionary;
+begin
+  if not (ATarget is TCnvStringDictionary) then
+    Exit;
+
+  dict := TCnvStringDictionary(ATarget);
+  if DictionarySerializationMode = ForceComplex then
+    ComplexDeserialize(dict, AContext)
+  else
+    SimpleDeserialize(dict, AContext);
+end;
+
+procedure TCnvStringDictionaryDeserializer.ComplexDeserialize(
+  var ADic: TCnvStringDictionary; AContext: Pointer);
+var
+  key: string;
+  subit, keyit, valit: IBsonIterator;
+begin
+  while Source.next do
+  begin
+    if (Source.kind = bsonOBJECT)
+       and (Source.key = SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE) then
+    begin
+      key := '';
+      subit := Source.subiterator;
+      if subit.next and (subit.kind = bsonOBJECT)
+       and (subit.key = SERIALIZED_ATTRIBUTE_COLLECTION_KEY) then
+      begin
+        keyit := subit.subiterator;
+        if keyit.kind <> bsonSTRING then
+          raise EBsonSerializer.Create('Only string key supported for ' + TCnvStringDictionary.ClassName);
+        key := keyit.AsUTF8String;
+        if subit.next and (subit.kind = bsonOBJECT)
+          and (subit.key = SERIALIZED_ATTRIBUTE_COLLECTION_VALUE) then
+        begin
+          valit := subit.subiterator;
+          valit.next;
+          DeserializeValue(ADic, AContext, valit, key);
+        end;
+
+      end;
+    end;
+  end;
+end;
+
+class procedure TCnvStringDictionaryDeserializer.DeserializeValue(var ADic: TCnvStringDictionary; AContext: Pointer;
+  it: IBsonIterator; const AKey: string);
+var
   deserializer: TBaseBsonDeserializer;
   obj: TObject;
-  it: IBsonIterator;
+  subit: IBsonIterator;
 begin
-  with TCnvStringDictionary(ATarget) do
-    while Source.next do
-      case Source.Kind of
-        bsonSTRING: AddOrSetValue(Source.key, Source.AsUTF8String);
-        bsonINT: AddOrSetValue(Source.key, Source.AsInteger);
-        bsonLONG: AddOrSetValue(Source.key, Source.AsInt64);
-        bsonDOUBLE: AddOrSetValue(Source.key, Source.AsDouble);
-        bsonBOOL: AddOrSetValue(Source.key, Source.AsBoolean);
-        bsonDATE: AddOrSetValueDate(Source.key, Source.AsDateTime);
-        bsonOBJECT:
-        begin
-          it := Source.subiterator;
-          obj := TPrimitivesBsonDeserializer.BuildObject(it.AsUTF8String, AContext);
-          deserializer := CreateDeserializer(TObject);
-          try
-            deserializer.Source := it;
-            deserializer.Deserialize(obj, AContext);
-          finally
-            deserializer.Free;
-          end;
-          AddOrSetValue(Source.key, obj);
+  with ADic do
+    case it.Kind of
+      bsonSTRING: AddOrSetValue(AKey, it.AsUTF8String);
+      bsonINT: AddOrSetValue(AKey, it.AsInteger);
+      bsonLONG: AddOrSetValue(AKey, it.AsInt64);
+      bsonDOUBLE: AddOrSetValue(AKey, it.AsDouble);
+      bsonBOOL: AddOrSetValue(AKey, it.AsBoolean);
+      bsonDATE: AddOrSetValueDate(AKey, it.AsDateTime);
+      bsonOBJECT:
+      begin
+        subit := it.subiterator;
+        obj := TPrimitivesBsonDeserializer.BuildObject(subit.AsUTF8String, AContext);
+        deserializer := CreateDeserializer(TObject);
+        try
+          deserializer.Source := subit;
+          deserializer.Deserialize(obj, AContext);
+        finally
+          deserializer.Free;
         end;
-        else
-          raise Exception.Create('Unable to deserialize primitive wrapper');
+        AddOrSetValue(AKey, obj);
       end;
+      else
+        raise Exception.Create('Unable to deserialize primitive wrapper');
+    end;
+end;
+
+procedure TCnvStringDictionaryDeserializer.SimpleDeserialize(
+  var ADic: TCnvStringDictionary; AContext: Pointer);
+begin
+  while Source.next do
+    DeserializeValue(ADic, AContext, Source, Source.key);
 end;
 
 initialization

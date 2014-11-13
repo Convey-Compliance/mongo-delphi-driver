@@ -788,21 +788,26 @@ end;
 
 procedure TestTMongoBsonSerializer.StringDictionaryComplex;
 var
-  dic: TCnvStringDictionary;
-  b: IBsonBuffer;
+  dic, newDic: TCnvStringDictionary;
+  bb: IBsonBuffer;
+  b: IBson;
   it, subit, keyit, valueit: IBsonIterator;
+  subObj: TIntSubObject;
+  newInt: Integer;
 begin
   DictionarySerializationMode := ForceComplex;
   dic := TCnvStringDictionary.Create(true);
   dic.AddOrSetValue('item1', TIntSubObject.Create(5));
   dic.AddOrSetValue('a', 1);
 
-  b := NewBsonBuffer;
+  bb := NewBsonBuffer;
   FSerializer := CreateSerializer(TCnvStringDictionary);
-  FSerializer.Target := b;
+  FSerializer.Target := bb;
   FSerializer.Serialize('dict', dic);
 
-  it := b.finish.iterator;
+  b := bb.finish;
+
+  it := b.iterator;
   Check(it.next);
   Check(bsonOBJECT = it.Kind);
   CheckEquals('dict', it.key);
@@ -852,6 +857,16 @@ begin
   Check(valueit.next);
   Check(bsonINT = valueit.Kind);
   CheckEquals(1, valueit.Value);
+
+  newDic := TCnvStringDictionary.Create(true);
+  FDeserializer := CreateDeserializer(TCnvStringDictionary);
+  FDeserializer.Source := b.find('dict').subiterator;
+  FDeserializer.Deserialize(TObject(newDic), nil);
+
+  Check(newDic.TryGetValue('item1', TObject(subObj)));
+  CheckEquals(5, subObj.TheInt);
+  Check(newDic.TryGetValue('a', newInt));
+  CheckEquals(1, newInt);
 
   dic.Free;
   DictionarySerializationMode := Simple;
