@@ -12,8 +12,20 @@ uses
 
 const
   SERIALIZED_ATTRIBUTE_ACTUALTYPE = '_type';
+  SERIALIZED_ATTRIBUTE_COLLECTION_KEY = '_key';
+  SERIALIZED_ATTRIBUTE_COLLECTION_VALUE = '_value';
 
 type
+  // Dictionaries with string key can be serialized as bson object(Simple mode) where field name is Dictionary key
+  // such bson have simpler structure and it's more clear to understand
+  // however mongodb doesn't allow field names that contains . or starts with $
+  // use ForceComplex mode to avoid this issue(Dictionaries with string key will be also serialized in Complex mode)
+  // Dictionaries with non-string key serialized as array ob objects with key/value subobjects(Complex mode)
+  TDictionarySerializationMode = (
+    Simple,
+    ForceComplex
+  );
+
   TObjectBuilderFunction = function(const AClassName : string; AContext : Pointer) : TObject;
   EBsonSerializationException = class(Exception);
 
@@ -86,6 +98,9 @@ procedure UnregisterBuildableSerializableClass(const AClassName : string);
 { Use Strip_T_FormClassName() when comparing a regular Delphi ClassName with a serialized _type attribute
   coming from service-bus passed as parameter to object builder function }
 function Strip_T_FormClassName(const AClassName : string): string;
+
+var
+  DictionarySerializationMode: TDictionarySerializationMode;
 
 implementation
 
@@ -167,7 +182,9 @@ type
 
   TCnvStringDictionarySerializer = class(TBaseBsonSerializer)
   private
-    procedure SerializeKeyValuePair(const AKey: string; const AValue: TObject);
+    procedure SerializeKeyValuePairSimple(const AKey: string; const AValue: TObject);
+    procedure SerializeKeyValuePairComplex(const AKey: string; const AValue: TObject);
+    procedure SerializeValue(const AKey: string; const AValue: TObject);
   public
     procedure Serialize(const AName: String; ASource: TObject); override;
   end;
@@ -933,7 +950,26 @@ end;
 
 { TCnvStringDictionarySerializer }
 
-procedure TCnvStringDictionarySerializer.SerializeKeyValuePair(const AKey: string;
+procedure TCnvStringDictionarySerializer.SerializeKeyValuePairSimple(const AKey: string;
+  const AValue: TObject);
+begin
+  SerializeValue(AKey, AValue);
+end;
+
+procedure TCnvStringDictionarySerializer.SerializeKeyValuePairComplex(const AKey: string;
+  const AValue: TObject);
+begin
+  Target.startObject(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE);
+    Target.startObject(SERIALIZED_ATTRIBUTE_COLLECTION_KEY);
+      Target.appendStr(AValue.ClassName, AKey);
+    Target.finishObject;
+    Target.startObject(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE);
+      SerializeValue(AValue.ClassName, AValue);
+    Target.finishObject;
+  Target.finishObject;
+end;
+
+procedure TCnvStringDictionarySerializer.SerializeValue(const AKey: string;
   const AValue: TObject);
 var
   serializer: TBaseBsonSerializer;
@@ -971,14 +1007,21 @@ end;
 
 procedure TCnvStringDictionarySerializer.Serialize(const AName: String;
   ASource: TObject);
+var
+  callback: TCnvStringDictionaryEnumerateCallback;
 begin
   if not (ASource is TCnvStringDictionary) then
     Exit;
 
+  if DictionarySerializationMode = ForceComplex then
+    callback := SerializeKeyValuePairComplex
+  else
+    callback := SerializeKeyValuePairSimple;
+
   with Target do
   begin
     startObject(AName);
-    TCnvStringDictionary(ASource).Foreach(SerializeKeyValuePair);
+    TCnvStringDictionary(ASource).Foreach(callback);
     finishObject;
   end;
 end;
@@ -1020,6 +1063,8 @@ begin
 end;
 
 initialization
+  DictionarySerializationMode := Simple;
+
   PropInfosDictionaryCacheTrackingListLock := TCriticalSection.Create;
   PropInfosDictionaryCacheTrackingList := TList.Create;
   BuilderFunctions := TCnvStringDictionary.Create;

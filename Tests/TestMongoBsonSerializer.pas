@@ -31,7 +31,8 @@ type
     procedure TestSerializeObjectDeserializeWithDynamicBuildingOfObjProp;
     procedure TestSerializePrimitiveTypes;
     procedure DynamicArrayOfObjects;
-    procedure StringDictionary;
+    procedure StringDictionarySimple;
+    procedure StringDictionaryComplex;
   end;
   {$M-}
 
@@ -727,7 +728,7 @@ begin
   FObjectAsStringList.Assign(Value);
 end;
 
-procedure TestTMongoBsonSerializer.StringDictionary;
+procedure TestTMongoBsonSerializer.StringDictionarySimple;
 const
   SUBOBJ_VAL = -1;
   MAXINT = High(Integer);
@@ -783,6 +784,77 @@ begin
   CheckEquals(DOUBLE_VAL, newDouble, DELTA);
   Check(newDic.TryGetValueDate('item7', newDate));
   CheckEquals(date, newDate, DELTA);
+end;
+
+procedure TestTMongoBsonSerializer.StringDictionaryComplex;
+var
+  dic: TCnvStringDictionary;
+  b: IBsonBuffer;
+  it, subit, keyit, valueit: IBsonIterator;
+begin
+  DictionarySerializationMode := ForceComplex;
+  dic := TCnvStringDictionary.Create(true);
+  dic.AddOrSetValue('item1', TIntSubObject.Create(5));
+  dic.AddOrSetValue('a', 1);
+
+  b := NewBsonBuffer;
+  FSerializer := CreateSerializer(TCnvStringDictionary);
+  FSerializer.Target := b;
+  FSerializer.Serialize('dict', dic);
+
+  it := b.finish.iterator;
+  Check(it.next);
+  Check(bsonOBJECT = it.Kind);
+  CheckEquals('dict', it.key);
+
+  it := it.subiterator;
+  Check(it.next);
+  Check(bsonOBJECT = it.Kind);
+  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, it.key);
+
+  subit := it.subiterator;
+  Check(subit.next);
+  Check(bsonOBJECT = subit.Kind);
+  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY, subit.key);
+
+  keyit := subit.subiterator;
+  Check(keyit.next);
+  Check(bsonSTRING = keyit.Kind);
+  CheckEquals('item1', keyit.Value);
+
+  Check(subit.next);
+  Check(bsonOBJECT = subit.Kind);
+  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, subit.key);
+
+  valueit := subit.subiterator;
+  Check(valueit.next);
+  Check(bsonOBJECT = valueit.Kind);
+
+  Check(it.next);
+  Check(bsonOBJECT = it.Kind);
+  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, it.key);
+
+  subit := it.subiterator;
+  Check(subit.next);
+  Check(bsonOBJECT = subit.Kind);
+  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY, subit.key);
+
+  keyit := subit.subiterator;
+  Check(keyit.next);
+  Check(bsonSTRING = keyit.Kind);
+  CheckEquals('a', keyit.Value);
+
+  Check(subit.next);
+  Check(bsonOBJECT = subit.Kind);
+  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, subit.key);
+
+  valueit := subit.subiterator;
+  Check(valueit.next);
+  Check(bsonINT = valueit.Kind);
+  CheckEquals(1, valueit.Value);
+
+  dic.Free;
+  DictionarySerializationMode := Simple;
 end;
 
 { TIntSubObject }
