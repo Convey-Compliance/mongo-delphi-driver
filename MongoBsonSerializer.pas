@@ -12,8 +12,20 @@ uses
 
 const
   SERIALIZED_ATTRIBUTE_ACTUALTYPE = '_type';
+  SERIALIZED_ATTRIBUTE_COLLECTION_KEY = '_key';
+  SERIALIZED_ATTRIBUTE_COLLECTION_VALUE = '_value';
 
 type
+  // Dictionaries with string key can be serialized as bson object(Simple mode) where field name is Dictionary key
+  // such bson have simpler structure and it's more clear to understand
+  // however mongodb doesn't allow field names that contains . or starts with $
+  // use ForceComplex mode to avoid this issue(Dictionaries with string key will be also serialized in Complex mode)
+  // Dictionaries with non-string key serialized as array ob objects with key/value subobjects(Complex mode)
+  TDictionarySerializationMode = (
+    Simple,
+    ForceComplex
+  );
+
   TObjectBuilderFunction = function(const AClassName : string; AContext : Pointer) : TObject;
 
   EDynArrayUnsupported = class(Exception)
@@ -96,6 +108,9 @@ procedure UnregisterBuildableSerializableClass(const AClassName : string);
   coming from service-bus passed as parameter to object builder function }
 function Strip_T_FormClassName(const AClassName : string): string;
 
+var
+  DictionarySerializationMode: TDictionarySerializationMode;
+
 implementation
 
 uses
@@ -176,13 +191,19 @@ type
   end;
 
   TCnvStringDictionarySerializer = class(TBaseBsonSerializer)
-  private
-    procedure SerializeKeyValuePair(const AKey: string; const AValue: TObject; AUserData: Pointer);
+    procedure SerializeKeyValuePairSimple(const AKey: string; const AValue: TObject; AUserData: Pointer);
+    procedure SerializeKeyValuePairComplex(const AKey: string; const AValue: TObject; AUserData: Pointer);
+    procedure SerializeValue(const AKey: string; const AValue: TObject);
   public
     procedure Serialize(const AName: String; ASource: TObject); override;
   end;
 
   TCnvStringDictionaryDeserializer = class(TBaseBsonDeserializer)
+  private
+    class procedure DeserializeValue(var ADic: TCnvStringDictionary; AContext: Pointer;
+      it: IBsonIterator; const AKey: string);
+    procedure SimpleDeserialize(var ADic: TCnvStringDictionary; AContext : Pointer);
+    procedure ComplexDeserialize(var ADic: TCnvStringDictionary; AContext : Pointer);
   public
     procedure Deserialize(var ATarget: TObject; AContext : Pointer); override;
   end;
@@ -979,8 +1000,27 @@ end;
 
 { TCnvStringDictionarySerializer }
 
-procedure TCnvStringDictionarySerializer.SerializeKeyValuePair(const AKey: string;
+procedure TCnvStringDictionarySerializer.SerializeKeyValuePairSimple(const AKey: string;
   const AValue: TObject; AUserData: Pointer);
+begin
+  SerializeValue(AKey, AValue);
+end;
+
+procedure TCnvStringDictionarySerializer.SerializeKeyValuePairComplex(const AKey: string;
+  const AValue: TObject; AUserData: Pointer);
+begin
+  Target.startObject(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE);
+    Target.startObject(SERIALIZED_ATTRIBUTE_COLLECTION_KEY);
+      Target.appendStr(AValue.ClassName, AKey);
+    Target.finishObject;
+    Target.startObject(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE);
+      SerializeValue(AValue.ClassName, AValue);
+    Target.finishObject;
+  Target.finishObject;
+end;
+
+procedure TCnvStringDictionarySerializer.SerializeValue(const AKey: string;
+  const AValue: TObject);
 var
   serializer: TBaseBsonSerializer;
 begin
@@ -1017,14 +1057,21 @@ end;
 
 procedure TCnvStringDictionarySerializer.Serialize(const AName: String;
   ASource: TObject);
+var
+  callback: TCnvStringDictionaryEnumerateCallback;
 begin
   if not (ASource is TCnvStringDictionary) then
     Exit;
 
+  if DictionarySerializationMode = ForceComplex then
+    callback := SerializeKeyValuePairComplex
+  else
+    callback := SerializeKeyValuePairSimple;
+
   with Target do
   begin
     startObject(AName);
-    TCnvStringDictionary(ASource).Foreach(SerializeKeyValuePair);
+    TCnvStringDictionary(ASource).Foreach(callback);
     finishObject;
   end;
 end;
@@ -1034,39 +1081,94 @@ end;
 procedure TCnvStringDictionaryDeserializer.Deserialize(var ATarget: TObject;
   AContext: Pointer);
 var
+  dict: TCnvStringDictionary;
+begin
+  if not (ATarget is TCnvStringDictionary) then
+    Exit;
+
+  dict := TCnvStringDictionary(ATarget);
+  if DictionarySerializationMode = ForceComplex then
+    ComplexDeserialize(dict, AContext)
+  else
+    SimpleDeserialize(dict, AContext);
+end;
+
+procedure TCnvStringDictionaryDeserializer.ComplexDeserialize(
+  var ADic: TCnvStringDictionary; AContext: Pointer);
+var
+  key: string;
+  subit, keyit, valit: IBsonIterator;
+begin
+  while Source.next do
+  begin
+    if (Source.kind = BSON_TYPE_DOCUMENT)
+       and (Source.key = SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE) then
+    begin
+      key := '';
+      subit := Source.subiterator;
+      if subit.next and (subit.kind = BSON_TYPE_DOCUMENT)
+       and (subit.key = SERIALIZED_ATTRIBUTE_COLLECTION_KEY) then
+      begin
+        keyit := subit.subiterator;
+        keyit.next;
+        if keyit.kind <> BSON_TYPE_UTF8 then
+          raise EBsonSerializer.Create('Only string key supported for ' + TCnvStringDictionary.ClassName);
+        key := keyit.AsUTF8String;
+        if subit.next and (subit.kind = BSON_TYPE_DOCUMENT)
+          and (subit.key = SERIALIZED_ATTRIBUTE_COLLECTION_VALUE) then
+        begin
+          valit := subit.subiterator;
+          valit.next;
+          DeserializeValue(ADic, AContext, valit, key);
+        end;
+      end;
+    end;
+  end;
+end;
+
+class procedure TCnvStringDictionaryDeserializer.DeserializeValue(var ADic: TCnvStringDictionary; AContext: Pointer;
+  it: IBsonIterator; const AKey: string);
+var
   deserializer: TBaseBsonDeserializer;
   obj: TObject;
-  it: IBsonIterator;
+  subit: IBsonIterator;
 begin
-  with TCnvStringDictionary(ATarget) do
-    while Source.next do
-      case Source.Kind of
-        BSON_TYPE_UTF8: AddOrSetValue(Source.key, Source.AsUTF8String);
-        BSON_TYPE_INT32: AddOrSetValue(Source.key, Source.AsInteger);
-        BSON_TYPE_INT64: AddOrSetValue(Source.key, Source.AsInt64);
-        BSON_TYPE_DOUBLE: AddOrSetValue(Source.key, Source.AsDouble);
-        BSON_TYPE_BOOL: AddOrSetValue(Source.key, Source.AsBoolean);
-        BSON_TYPE_DATE_TIME: AddOrSetValueDate(Source.key, Source.AsDateTime);
-        BSON_TYPE_DOCUMENT:
-        begin
-          it := Source.subiterator;
-          it.next;
-          obj := TPrimitivesBsonDeserializer.BuildObject(it.AsUTF8String, AContext);
-          deserializer := CreateDeserializer(TObject);
-          try
-            deserializer.Source := it;
-            deserializer.Deserialize(obj, AContext);
-          finally
-            deserializer.Free;
-          end;
-          AddOrSetValue(Source.key, obj);
+  with ADic do
+    case it.Kind of
+      BSON_TYPE_UTF8: AddOrSetValue(AKey, it.AsUTF8String);
+      BSON_TYPE_INT32: AddOrSetValue(AKey, it.AsInteger);
+      BSON_TYPE_INT64: AddOrSetValue(AKey, it.AsInt64);
+      BSON_TYPE_DOUBLE: AddOrSetValue(AKey, it.AsDouble);
+      BSON_TYPE_BOOL: AddOrSetValue(AKey, it.AsBoolean);
+      BSON_TYPE_DATE_TIME: AddOrSetValueDate(AKey, it.AsDateTime);
+      BSON_TYPE_DOCUMENT:
+      begin
+        subit := it.subiterator;
+        obj := nil;
+        deserializer := CreateDeserializer(TObject);
+        try
+          deserializer.Source := subit;
+          deserializer.Deserialize(obj, AContext);
+        finally
+          deserializer.Free;
         end;
-        else
-          raise Exception.Create('Unable to deserialize primitive wrapper');
+        AddOrSetValue(AKey, obj);
       end;
+      else
+        raise Exception.Create('Unable to deserialize primitive wrapper');
+    end;
+end;
+
+procedure TCnvStringDictionaryDeserializer.SimpleDeserialize(
+  var ADic: TCnvStringDictionary; AContext: Pointer);
+begin
+  while Source.next do
+    DeserializeValue(ADic, AContext, Source, Source.key);
 end;
 
 initialization
+  DictionarySerializationMode := Simple;
+
   PropInfosDictionaryCacheTrackingListLock := TCriticalSection.Create;
   PropInfosDictionaryCacheTrackingList := TList.Create;
   BuilderFunctions := TCnvStringDictionary.Create;
