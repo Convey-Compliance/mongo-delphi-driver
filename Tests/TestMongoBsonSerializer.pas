@@ -1,4 +1,4 @@
-﻿unit TestMongoBsonSerializer;
+unit TestMongoBsonSerializer;
 // should be encoded as UTF8 without BOM for Delphi5
 
 {$i DelphiVersion_defines.inc}
@@ -849,26 +849,26 @@ begin
   it := b.iterator;
   Check(it.next);
   Check(BSON_TYPE_DOCUMENT = it.Kind);
-  CheckEquals('dict', it.key);
+  CheckEqualsString('dict', it.key);
 
   it := it.subiterator;
   Check(it.next);
   Check(BSON_TYPE_DOCUMENT = it.Kind);
-  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, it.key);
+  CheckEqualsString(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, it.key);
 
   subit := it.subiterator;
   Check(subit.next);
   Check(BSON_TYPE_DOCUMENT = subit.Kind);
-  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY, subit.key);
+  CheckEqualsString(SERIALIZED_ATTRIBUTE_COLLECTION_KEY, subit.key);
 
   keyit := subit.subiterator;
   Check(keyit.next);
   Check(BSON_TYPE_UTF8 = keyit.Kind);
-  CheckEquals('item1', keyit.Value);
+  CheckEqualsString('item1', keyit.Value);
 
   Check(subit.next);
   Check(BSON_TYPE_DOCUMENT = subit.Kind);
-  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, subit.key);
+  CheckEqualsString(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, subit.key);
 
   valueit := subit.subiterator;
   Check(valueit.next);
@@ -876,21 +876,21 @@ begin
 
   Check(it.next);
   Check(BSON_TYPE_DOCUMENT = it.Kind);
-  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, it.key);
+  CheckEqualsString(SERIALIZED_ATTRIBUTE_COLLECTION_KEY + SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, it.key);
 
   subit := it.subiterator;
   Check(subit.next);
   Check(BSON_TYPE_DOCUMENT = subit.Kind);
-  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_KEY, subit.key);
+  CheckEqualsString(SERIALIZED_ATTRIBUTE_COLLECTION_KEY, subit.key);
 
   keyit := subit.subiterator;
   Check(keyit.next);
   Check(BSON_TYPE_UTF8 = keyit.Kind);
-  CheckEquals('a', keyit.Value);
+  CheckEqualsString('a', keyit.Value);
 
   Check(subit.next);
   Check(BSON_TYPE_DOCUMENT = subit.Kind);
-  CheckEquals(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, subit.key);
+  CheckEqualsString(SERIALIZED_ATTRIBUTE_COLLECTION_VALUE, subit.key);
 
   valueit := subit.subiterator;
   Check(valueit.next);
