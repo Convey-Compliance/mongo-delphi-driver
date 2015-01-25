@@ -157,6 +157,7 @@ procedure TAppExec.Execute;
 var
   //InstanceID : THandle;
   buffer: array[0..511] of Char;
+  bufferParams : array[0..511]  of Char;
   TmpStr: String;
   i: Integer;
   StartupInfo:TStartupInfo;
@@ -164,9 +165,10 @@ var
 begin
   { Création de la ligne de commande }
   TmpStr := FExeName;
+  StrPCopy(buffer,TmpStr);
   for i := 0 to FExeParams.Count - 1 do
     TmpStr := TmpStr + ' ' + FExeParams.Strings[i];
-  StrPCopy(buffer,TmpStr);
+  StrPCopy(bufferParams, TmpStr);
   { Changement de répertoire }
   if FChangeDir and (FExePath <> '') then
   begin
@@ -182,8 +184,8 @@ begin
   StartupInfo.cb := Sizeof(StartupInfo);
   StartupInfo.dwFlags := STARTF_USESHOWWINDOW;
   StartupInfo.wShowWindow := FMode;
-  if not CreateProcess(nil,
-    buffer,                        { pointer to command line string }
+  if not CreateProcessA(buffer,
+    bufferParams,                        { pointer to command line string }
     nil,                           { pointer to process security attributes }
     nil,                           { pointer to thread security attributes }
     false,                         { handle inheritance flag }
